@@ -2,7 +2,7 @@ import QRCode from "qrcode";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-  "https://s-o7ibr9t2z-pdf-polarizado.vercel.app";
+  "https://inventarioqr-pink.vercel.app";
 
 export function getScanUrl(itemId: string): string {
   return `${APP_URL}/scan?id=${itemId}`;

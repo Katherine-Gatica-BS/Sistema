@@ -1,0 +1,306 @@
+"use client";
+
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Package, Plus, Search, Printer, CheckSquare, Square, X, QrCode, Camera } from "lucide-react";
+import Link from "next/link";
+import { AppShell } from "@/components/AppShell";
+import { ItemCard } from "@/components/ItemCard";
+import { CreateItemForm } from "@/components/CreateItemForm";
+import { PrintPreviewModal } from "@/components/PrintPreviewModal";
+import { Item, Categoria } from "@/lib/supabase";
+import { normalizeCategoryIcon } from "@/lib/category-icon";
+
+type Tab = "disponible" | "usado";
+
+function InventarioContent() {
+  const searchParams = useSearchParams();
+  const catParam     = searchParams.get("cat");
+
+  const [items, setItems]           = useState<Item[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [tab, setTab]               = useState<Tab>("disponible");
+  const [showForm, setShowForm]     = useState(false);
+  const [catFiltro, setCatFiltro]   = useState(catParam ?? "");
+  const [busqueda, setBusqueda]     = useState("");
+  const [apiError, setApiError]     = useState("");
+
+  // Selección múltiple para impresión
+  const [modoSeleccion, setModoSeleccion]       = useState(false);
+  const [seleccionados, setSeleccionados]       = useState<Set<string>>(new Set());
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setApiError("");
+    try {
+      const [ir, cr] = await Promise.all([
+        fetch("/api/items"),
+        fetch("/api/categorias"),
+      ]);
+
+      if (!ir.ok) {
+        const e = await ir.json().catch(() => ({}));
+        setApiError(`Error: ${e.error ?? ir.status}. Revisa las variables de entorno en .env.local`);
+      } else {
+        const data = await ir.json();
+        // Normalizar items — algunos pueden tener atributos null (datos migrados)
+        const normalized = (Array.isArray(data) ? data : []).map((item: Item) => ({
+          ...item,
+          atributos: item.atributos ?? {},
+          cantidad:  item.cantidad  ?? 1,
+        }));
+        setItems(normalized);
+      }
+
+      if (cr.ok) {
+        const data = await cr.json();
+        setCategorias(Array.isArray(data) ? data : []);
+      }
+    } catch (e: any) {
+      setApiError(`Error de red: ${e?.message ?? "desconocido"}`);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Filtrado seguro
+  const filtrados = items.filter(item => {
+    if (item.estado !== tab) return false;
+    if (catFiltro && item.categoria_id !== catFiltro) return false;
+    if (busqueda) {
+      const texto = Object.values(item.atributos ?? {}).join(" ").toLowerCase();
+      if (!texto.includes(busqueda.toLowerCase())) return false;
+    }
+    return true;
+  });
+
+  const disponibles = items.filter(i => i.estado === "disponible");
+  const usados      = items.filter(i => i.estado === "usado");
+
+  function toggleSeleccion(id: string) {
+    setSeleccionados(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function seleccionarTodos() { setSeleccionados(new Set(filtrados.map(i => i.id))); }
+  function deseleccionarTodos() { setSeleccionados(new Set()); }
+  function salirModoSeleccion() { setModoSeleccion(false); setSeleccionados(new Set()); }
+
+  const itemsSeleccionados = items.filter(i => seleccionados.has(i.id));
+
+  return (
+    <AppShell>
+      <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4">
+
+        {/* Header */}
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="lg:hidden text-lg font-bold text-slate-800">Inventario</h2>
+            <p className="text-sm text-slate-400">{items.length} ítems en total</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!modoSeleccion ? (
+              <>
+                <button
+                  onClick={() => { setModoSeleccion(true); setShowForm(false); }}
+                  className="flex items-center gap-2 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+                >
+                  <Printer size={15} />
+                  <span className="hidden sm:inline">Imprimir</span>
+                </button>
+                <button
+                  onClick={() => setShowForm(v => !v)}
+                  className="flex items-center gap-2 py-2.5 px-4 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-sm active:scale-95 transition-all"
+                >
+                  <QrCode size={16} />
+                  {showForm ? "Cancelar" : "Crear QR"}
+                </button>
+                <Link
+                  href="/scan"
+                  className="flex items-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 shadow-sm transition-all"
+                >
+                  <Camera size={16} />
+                  <span className="hidden sm:inline">Escanear</span>
+                </Link>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-slate-700">
+                  {seleccionados.size} sel.
+                </span>
+                <button onClick={seleccionarTodos}
+                  className="flex items-center gap-1.5 text-xs text-sky-600 font-medium px-2.5 py-1.5 rounded-lg hover:bg-sky-50">
+                  <CheckSquare size={13} /> Todos
+                </button>
+                <button onClick={deseleccionarTodos}
+                  className="flex items-center gap-1.5 text-xs text-slate-500 font-medium px-2.5 py-1.5 rounded-lg hover:bg-slate-100">
+                  <Square size={13} /> Ninguno
+                </button>
+                <button onClick={salirModoSeleccion}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100">
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Botón imprimir lote */}
+        {modoSeleccion && seleccionados.size > 0 && (
+          <button
+            onClick={() => setShowPrintPreview(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-sm"
+          >
+            <Printer size={16} />
+            Imprimir {seleccionados.size} etiqueta{seleccionados.size !== 1 ? "s" : ""}
+          </button>
+        )}
+
+        {modoSeleccion && seleccionados.size === 0 && (
+          <div className="bg-sky-50 border border-sky-100 rounded-xl px-4 py-3 text-sm text-sky-700 text-center">
+            Toca los productos para seleccionarlos
+          </div>
+        )}
+
+        {/* Error */}
+        {apiError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            ⚠️ {apiError}
+          </div>
+        )}
+
+        {/* Formulario crear QR */}
+        {showForm && !modoSeleccion && (
+          <CreateItemForm
+            categorias={categorias}
+            defaultCategoriaId={catFiltro || undefined}
+            onCreated={() => { fetchData(); setShowForm(false); }}
+            onClose={() => setShowForm(false)}
+          />
+        )}
+
+        {/* Filtros */}
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar..."
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
+            <button
+              onClick={() => setCatFiltro("")}
+              className={`flex-shrink-0 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                !catFiltro ? "bg-sky-600 text-white" : "bg-white border border-slate-200 text-slate-600"
+              }`}
+            >
+              Todos
+            </button>
+            {categorias.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setCatFiltro(cat.id === catFiltro ? "" : cat.id)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                  catFiltro === cat.id ? "bg-sky-600 text-white" : "bg-white border border-slate-200 text-slate-600"
+                }`}
+              >
+                <CatFilterIcon icono={cat.icono} />
+                {cat.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex bg-slate-100 rounded-xl p-1">
+          {(["disponible", "usado"] as Tab[]).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                tab === t ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"
+              }`}
+            >
+              {t === "disponible" ? `Disponibles (${disponibles.length})` : `Usados (${usados.length})`}
+            </button>
+          ))}
+        </div>
+
+        {/* Lista */}
+        {loading ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-40 bg-white rounded-2xl animate-pulse border border-slate-100" />
+            ))}
+          </div>
+        ) : filtrados.length === 0 ? (
+          <div className="text-center py-20 text-slate-400">
+            <Package size={40} className="mx-auto mb-3 opacity-30" />
+            <p className="font-medium">
+              No hay ítems {tab === "disponible" ? "disponibles" : "usados"}
+              {busqueda && ` con "${busqueda}"`}
+            </p>
+            {items.length > 0 && filtrados.length === 0 && !busqueda && (
+              <p className="text-xs text-slate-300 mt-2">
+                Hay {items.length} ítems en total — cambia el filtro o el tab
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+            {filtrados.map(item => (
+              <ItemCard
+                key={item.id}
+                item={item}
+                modoSeleccion={modoSeleccion}
+                seleccionado={seleccionados.has(item.id)}
+                onToggleSeleccion={toggleSeleccion}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showPrintPreview && (
+        <PrintPreviewModal
+          items={itemsSeleccionados}
+          onClose={() => setShowPrintPreview(false)}
+        />
+      )}
+    </AppShell>
+  );
+}
+
+// Ícono pequeño para los botones de filtro de categoría
+function CatFilterIcon({ icono }: { icono: string }) {
+  if (!icono) return null;
+  const src = normalizeCategoryIcon(icono);
+  if (src) {
+    return <img src={src} alt="" className="w-4 h-4 rounded object-cover flex-shrink-0" />;
+  }
+  return <span className="text-sm leading-none">{icono}</span>;
+}
+
+export default function InventarioPage() {
+  return (
+    <Suspense fallback={
+      <AppShell>
+        <div className="flex items-center justify-center min-h-64">
+          <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AppShell>
+    }>
+      <InventarioContent />
+    </Suspense>
+  );
+}

@@ -1,12 +1,19 @@
-// Service Worker — Inventario Conos
-// En desarrollo, no cachear chunks de Next.js ni assets dinámicos.
+// Service Worker — Inventario Pro
+// La red es la fuente principal para que cada deploy de Vercel se refleje de inmediato.
+const CACHE_NAME = "inventario-pro-v2";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys
+        .filter((key) => key !== CACHE_NAME)
+        .map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener("fetch", (event) => {
@@ -19,22 +26,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // En desarrollo / preview, evitar cache de chunks de Next.
-  if (process.env.NODE_ENV !== "production") {
-    event.respondWith(fetch(request));
-    return;
-  }
-
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open("conos-v1").then((cache) => cache.put(request, clone));
+    fetch(request)
+      .then((response) => {
+        if (request.method === "GET" && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }
         return response;
-      });
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });

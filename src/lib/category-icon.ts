@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 export function normalizeCategoryIcon(icono?: string | null): string | null {
   const raw = (icono ?? "").trim();
   if (!raw) return null;
@@ -18,3 +19,5 @@ export function normalizeCategoryIcon(icono?: string | null): string | null {
 
   return null;
 }
+=======
+>>>>>>> d2ca8dd (Add inventory application)

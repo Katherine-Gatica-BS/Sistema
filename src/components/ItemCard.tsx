@@ -5,6 +5,9 @@ import { QrCode, ChevronDown, ChevronUp, CheckCircle2, Printer, Trash2, Loader2 
 import { Item } from "@/lib/supabase";
 import { generateQRDataUrl } from "@/lib/qr";
 import { normalizeCategoryIcon } from "@/lib/category-icon";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PrintPreviewModal } from "@/components/PrintPreviewModal";
+import { useAuth } from "@/lib/auth-context";
 
 interface Props {
   item: Item;
@@ -24,10 +27,15 @@ function CatIcon({ icono, nombre }: { icono?: string; nombre?: string }) {
 }
 
 export function ItemCard({ item, seleccionado, modoSeleccion, onToggleSeleccion, onDeleted }: Props) {
+  const { puede } = useAuth();
+  const puedeEliminar = puede("gestionarItems");
   const [qrSrc, setQrSrc]         = useState<string | null>(null);
   const [showQr, setShowQr]       = useState(false);
   const [loadingQr, setLoadingQr] = useState(false);
   const [deleting, setDeleting]   = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   const disponible = item.estado === "disponible";
   const cat        = item.categoria;
@@ -48,77 +56,30 @@ export function ItemCard({ item, seleccionado, modoSeleccion, onToggleSeleccion,
     setShowQr(true);
   }
 
-  async function handlePrintSingle(e: React.MouseEvent) {
+  function handlePrintSingle(e: React.MouseEvent) {
     e.stopPropagation();
-    const qr = await getQr();
-    const win = window.open("", "_blank");
-    if (!win) return;
-
-    const attrs2  = Object.entries(item.atributos ?? {});
-    const titulo2 = attrs2[0]?.[1] ?? "Sin nombre";
-    const rows = attrs2.map(([k, v]) => {
-      const campo = cat?.campos?.find(c => c.nombre === k);
-      return `<tr><td class="lbl">${campo?.label ?? k}</td><td class="val">${v}</td></tr>`;
-    }).join("");
-
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/>
-<title>Etiqueta</title>
-<style>
-  @page { size: 50mm 30mm; margin: 0; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; }
-  .label {
-    width: 50mm; height: 30mm;
-    display: flex; flex-direction: row;
-    align-items: center;
-    padding: 2mm; gap: 2mm;
-    border: 0.3mm solid #ccc;
-  }
-  .qr-col { flex-shrink: 0; width: 24mm; height: 24mm; }
-  .qr-col img { width: 24mm; height: 24mm; display: block; }
-  .divider { flex-shrink: 0; width: 0.3mm; height: 26mm; background: #ddd; }
-  .info-col {
-    flex: 1; min-width: 0; padding-left: 1.5mm;
-    display: flex; flex-direction: column; justify-content: center; gap: 0.5mm;
-  }
-  .cat-name { font-size: 5.5pt; color: #000; text-transform: uppercase; }
-  .product-name { font-size: 8pt; font-weight: bold; color: #000; text-transform: uppercase; }
-  table { border-collapse: collapse; width: 100%; margin-top: 0.5mm; }
-  td { font-size: 6pt; color: #000; padding: 0; vertical-align: top; }
-  td.lbl { color: #000; padding-right: 1mm; width: 40%; white-space: nowrap; }
-  td.val { font-weight: 500; }
-  .prod-id { font-size: 5pt; color: #000; font-family: monospace; margin-top: 1mm; }
-</style></head><body>
-<div class="label">
-  <div class="qr-col"><img src="${qr}"/></div>
-  <div class="divider"></div>
-  <div class="info-col">
-    <div class="cat-name">${cat?.nombre ?? ""}</div>
-    <div class="product-name">${titulo2}</div>
-    <table>${rows}</table>
-    <div class="prod-id">#${item.id.slice(0,12).toUpperCase()}</div>
-  </div>
-</div>
-<script>window.onload=function(){window.print();setTimeout(()=>window.close(),400);}<\/script>
-</body></html>`);
-    win.document.close();
+    setShowPrintPreview(true);
   }
 
-  async function handleDelete(e: React.MouseEvent) {
+  function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
-    const confirmation = window.prompt('Para confirmar, escribe "eliminar".');
-    if (confirmation?.trim().toLowerCase() !== "eliminar") return;
+    setDeleteError("");
+    setShowDeleteConfirm(true);
+  }
 
+  async function confirmDelete() {
     setDeleting(true);
+    setDeleteError("");
     try {
       const response = await fetch(`/api/items/${item.id}`, { method: "DELETE" });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error ?? "No se pudo eliminar el producto");
       }
+      setShowDeleteConfirm(false);
       onDeleted?.(item.id);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "No se pudo eliminar el producto");
+      setDeleteError(error instanceof Error ? error.message : "No se pudo eliminar el producto");
     } finally {
       setDeleting(false);
     }
@@ -207,33 +168,42 @@ export function ItemCard({ item, seleccionado, modoSeleccion, onToggleSeleccion,
         </div>
 
         {/* Acciones — solo si no está en modo selección */}
-        {!modoSeleccion && disponible && (
+        {!modoSeleccion && (disponible || puedeEliminar) && (
           <div className="flex gap-2">
-            <button
-              onClick={handleToggleQr}
-              disabled={loadingQr}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-sky-500 text-sky-600 text-sm font-medium hover:bg-sky-50 transition-colors disabled:opacity-50"
-            >
-              <QrCode size={15} />
-              {loadingQr ? "Generando..." : showQr ? "Ocultar QR" : "Ver QR"}
-              {!loadingQr && (showQr ? <ChevronUp size={13} /> : <ChevronDown size={13} />)}
-            </button>
-            <button
-              onClick={handlePrintSingle}
-              className="flex items-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
-              title="Imprimir etiqueta"
-            >
-              <Printer size={15} />
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="flex items-center justify-center rounded-xl border border-red-200 px-3 py-2.5 text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Eliminar producto"
-              aria-label="Eliminar producto"
-            >
-              {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-            </button>
+            {disponible && (
+              <>
+                <button
+                  onClick={handleToggleQr}
+                  disabled={loadingQr}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-sky-500 text-sky-600 text-sm font-medium hover:bg-sky-50 transition-colors disabled:opacity-50"
+                >
+                  <QrCode size={15} />
+                  {loadingQr ? "Generando..." : showQr ? "Ocultar QR" : "Ver QR"}
+                  {!loadingQr && (showQr ? <ChevronUp size={13} /> : <ChevronDown size={13} />)}
+                </button>
+                <button
+                  onClick={handlePrintSingle}
+                  className="flex items-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+                  title="Imprimir etiqueta"
+                >
+                  <Printer size={15} />
+                </button>
+              </>
+            )}
+            {puedeEliminar && (
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className={`flex items-center justify-center rounded-xl border border-red-200 px-3 py-2.5 text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  disponible ? "" : "flex-1 gap-2 text-sm font-medium"
+                }`}
+                title="Eliminar producto"
+                aria-label="Eliminar producto"
+              >
+                {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                {!disponible && <span>{deleting ? "Eliminando..." : "Eliminar"}</span>}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -284,6 +254,26 @@ export function ItemCard({ item, seleccionado, modoSeleccion, onToggleSeleccion,
             </div>
           </div>
         </div>
+      )}
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title={`¿Eliminar este producto?`}
+        description="Esta acción no se puede deshacer."
+        detail={`Código #${item.id.slice(0, 12).toUpperCase()} — ${cat?.nombre ?? "Sin categoría"}`}
+        error={deleteError}
+        loading={deleting}
+        confirmLabel="Eliminar"
+        requireTypedWord="eliminar"
+        onConfirm={confirmDelete}
+        onCancel={() => !deleting && setShowDeleteConfirm(false)}
+      />
+
+      {showPrintPreview && (
+        <PrintPreviewModal
+          items={[item]}
+          onClose={() => setShowPrintPreview(false)}
+        />
       )}
     </div>
   );

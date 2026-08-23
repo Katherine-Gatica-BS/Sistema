@@ -7,6 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { registrarAuditoria } from "@/lib/audit";
 
 function createServiceClient() {
   const url = process.env.SUPABASE_URL
@@ -69,6 +70,15 @@ export async function PATCH(req: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await registrarAuditoria({
+    usuario_id: null,
+    usuario_nombre: "Escaneo QR",
+    accion: "marcar_usado",
+    entidad: "item",
+    entidad_id: id,
+    detalle: { cantidadAnterior: cantidadActual, nuevaCantidad, nuevoEstado },
+  });
 
   return NextResponse.json({
     ...data,

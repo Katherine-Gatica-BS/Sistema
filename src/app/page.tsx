@@ -1,27 +1,54 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Package, TrendingUp, CheckCircle, Circle, Plus, ArrowRight } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Package, TrendingUp, CheckCircle, Circle, Plus, ArrowRight, X } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/AppShell";
 import { Item, Categoria } from "@/lib/supabase";
 import { normalizeCategoryIcon } from "@/lib/category-icon";
 
+const BarraPorCategoria = dynamic(() => import("@/components/DashboardCharts").then(m => m.BarraPorCategoria), {
+  ssr: false,
+  loading: () => <div className="h-40 bg-slate-50 rounded-xl animate-pulse" />,
+});
+const PieEstado = dynamic(() => import("@/components/DashboardCharts").then(m => m.PieEstado), {
+  ssr: false,
+  loading: () => <div className="h-40 bg-slate-50 rounded-xl animate-pulse" />,
+});
+
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { puede } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filtroEstados, setFiltroEstados] = useState<Set<"disponible" | "usado">>(new Set());
+
+  function toggleFiltro(estado: "disponible" | "usado") {
+    setFiltroEstados(prev => {
+      const next = new Set(prev);
+      next.has(estado) ? next.delete(estado) : next.add(estado);
+      return next;
+    });
+  }
+  function quitarFiltro() {
+    setFiltroEstados(new Set());
+  }
 
   const fetchData = useCallback(async () => {
     const [itemsRes, catRes] = await Promise.all([
       fetch("/api/items"),
       fetch("/api/categorias"),
     ]);
-    if (itemsRes.ok) setItems(await itemsRes.json());
-    if (catRes.ok) setCategorias(await catRes.json());
+    const categoriasList: Categoria[] = catRes.ok ? await catRes.json() : [];
+    setCategorias(categoriasList);
+    if (itemsRes.ok) {
+      // Adjuntar la categoría desde la lista ya cargada (evita duplicar íconos por ítem)
+      const categoriasPorId = new Map(categoriasList.map(c => [c.id, c]));
+      const data: Item[] = await itemsRes.json();
+      setItems(data.map(item => ({ ...item, categoria: categoriasPorId.get(item.categoria_id) })));
+    }
     setLoading(false);
   }, []);
 
@@ -42,11 +69,15 @@ export default function DashboardPage() {
 
   const pieData = [
     { name: "Disponibles", value: disponibles.length, color: "#0ea5e9" },
-    { name: "Usados", value: usados.length, color: "#e2e8f0" },
+    { name: "Usados", value: usados.length, color: "#64748b" },
   ];
 
-  // Últimos 5
-  const recientes = [...items].slice(0, 5);
+  // Últimos 5 — respeta el filtro activo de las tarjetas KPI
+  const itemsFiltrados = filtroEstados.size === 0
+    ? items
+    : items.filter(i => filtroEstados.has(i.estado));
+  const recientes = [...itemsFiltrados].slice(0, 5);
+  const hayFiltro = filtroEstados.size > 0;
 
   return (
     <AppShell>
@@ -70,11 +101,42 @@ export default function DashboardPage() {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard icon={<Package size={18} className="text-sky-600" />} label="Total ítems" value={items.length} delta={null} bg="bg-sky-100 border border-sky-200" />
-          <KpiCard icon={<Circle size={18} className="text-emerald-600 fill-emerald-600" />} label="Disponibles" value={disponibles.length} delta={`${100 - tasaUso}% del stock`} bg="bg-emerald-100 border border-emerald-200" />
-          <KpiCard icon={<CheckCircle size={18} className="text-slate-600" />} label="Usados" value={usados.length} delta={null} bg="bg-slate-200 border border-slate-300" />
+          <KpiCard
+            icon={<Package size={18} className="text-sky-600" />} label="Total ítems" value={items.length} delta={null}
+            bg="bg-sky-100 border border-sky-200"
+            selected={!hayFiltro}
+            onClick={quitarFiltro}
+          />
+          <KpiCard
+            icon={<Circle size={18} className="text-emerald-600 fill-emerald-600" />} label="Disponibles" value={disponibles.length} delta={`${100 - tasaUso}% del stock`}
+            bg="bg-emerald-100 border border-emerald-200"
+            selected={filtroEstados.has("disponible")}
+            dimmed={hayFiltro && !filtroEstados.has("disponible")}
+            onClick={() => toggleFiltro("disponible")}
+          />
+          <KpiCard
+            icon={<CheckCircle size={18} className="text-slate-600" />} label="Usados" value={usados.length} delta={null}
+            bg="bg-slate-200 border border-slate-300"
+            selected={filtroEstados.has("usado")}
+            dimmed={hayFiltro && !filtroEstados.has("usado")}
+            onClick={() => toggleFiltro("usado")}
+          />
           <KpiCard icon={<TrendingUp size={18} className="text-amber-600" />} label="Tasa de uso" value={`${tasaUso}%`} delta={null} bg="bg-amber-100 border border-amber-200" />
         </div>
+
+        {hayFiltro && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-slate-400">
+              Mostrando: {Array.from(filtroEstados).map(e => e === "disponible" ? "Disponibles" : "Usados").join(" + ")}
+            </span>
+            <button
+              onClick={quitarFiltro}
+              className="flex items-center gap-1.5 text-xs font-medium text-sky-600 hover:text-sky-700 bg-sky-50 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <X size={13} /> Quitar filtro
+            </button>
+          </div>
+        )}
 
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -87,16 +149,7 @@ export default function DashboardPage() {
             ) : porCategoria.length === 0 ? (
               <div className="h-40 flex items-center justify-center text-slate-300 text-sm">Sin datos aún</div>
             ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={porCategoria} barSize={18} barGap={3}>
-                  <XAxis dataKey="nombre" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={22} />
-                  <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", fontSize: 12 }}
-                    formatter={(val, name) => [val, name === "disponible" ? "Disponible" : "Usado"]} />
-                  <Bar dataKey="disponible" fill="#0ea5e9" radius={[4, 4, 0, 0]} name="disponible" />
-                  <Bar dataKey="usado" fill="#e2e8f0" radius={[4, 4, 0, 0]} name="usado" />
-                </BarChart>
-              </ResponsiveContainer>
+              <BarraPorCategoria porCategoria={porCategoria} />
             )}
           </div>
 
@@ -107,14 +160,7 @@ export default function DashboardPage() {
             {items.length === 0 ? (
               <div className="h-40 flex items-center justify-center text-slate-300 text-sm">Sin datos</div>
             ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={3} dataKey="value">
-                    {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <PieEstado pieData={pieData} />
             )}
             <div className="space-y-1.5 mt-1">
               {pieData.map(d => (
@@ -145,7 +191,9 @@ export default function DashboardPage() {
                 {[...Array(4)].map((_, i) => <div key={i} className="h-10 bg-slate-50 rounded-lg animate-pulse" />)}
               </div>
             ) : recientes.length === 0 ? (
-              <div className="py-12 text-center text-slate-300 text-sm">Sin ítems aún</div>
+              <div className="py-12 text-center text-slate-300 text-sm">
+                {hayFiltro ? "Sin ítems para este filtro" : "Sin ítems aún"}
+              </div>
             ) : (
               <div className="divide-y divide-slate-50">
                 {recientes.map(item => {
@@ -201,7 +249,7 @@ export default function DashboardPage() {
                   );
                 })
               )}
-              {user && (
+              {puede("gestionarCategorias") && (
                 <Link href="/categorias" className="flex items-center gap-2 p-3 rounded-xl border border-dashed border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600 transition-colors text-sm">
                   <Plus size={15} />
                   Nueva categoría
@@ -217,15 +265,26 @@ export default function DashboardPage() {
   );
 }
 
-function KpiCard({ icon, label, value, delta, bg }: { icon: React.ReactNode; label: string; value: number | string; delta: string | null; bg: string }) {
+function KpiCard({ icon, label, value, delta, bg, selected, dimmed, onClick }: {
+  icon: React.ReactNode; label: string; value: number | string; delta: string | null; bg: string;
+  selected?: boolean; dimmed?: boolean; onClick?: () => void;
+}) {
+  const clickable = !!onClick;
   return (
-    <div className={`${bg} rounded-2xl p-4 flex items-center gap-3 shadow-sm`}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!clickable}
+      className={`${bg} rounded-2xl p-4 flex items-center gap-3 shadow-sm text-left w-full transition-all ${
+        clickable ? "hover:brightness-95 cursor-pointer" : "cursor-default"
+      } ${dimmed ? "opacity-50" : ""} ${selected ? "ring-2 ring-offset-1 ring-slate-400" : ""}`}
+    >
       <div className="w-10 h-10 bg-white/80 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 border border-white/70">{icon}</div>
       <div>
         <p className="text-2xl font-bold text-slate-800 leading-none">{value}</p>
         <p className="text-xs font-medium text-slate-700 mt-0.5">{label}</p>
         {delta && <p className="text-xs text-emerald-700 mt-0.5">{delta}</p>}
       </div>
-    </div>
+    </button>
   );
 }

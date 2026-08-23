@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { rutaPorDefecto, type Rol } from "@/lib/permissions";
 
 type CookieToSet = {
   name: string;
@@ -10,8 +11,8 @@ type CookieToSet = {
 /**
  * Middleware de sesión.
  * - Refresca el token en cada request.
- * - /scan es PÚBLICO — no requiere autenticación.
- * - Solo /login redirige al home si ya hay sesión.
+ * - /scan y /api/public/* son PÚBLICOS — no requieren autenticación.
+ * - El resto de páginas requiere sesión, y algunas requieren un rol específico.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -50,14 +51,49 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Las rutas de API manejan su propia autenticación/autorización (ver src/lib/current-user.ts).
+  if (pathname.startsWith("/api/")) return supabaseResponse;
+
+  // /scan es completamente público — no requiere sesión.
+  if (pathname.startsWith("/scan")) return supabaseResponse;
+
+  // El enlace de recuperación de contraseña crea su propia sesión temporal en el cliente
+  // (vía hash de URL) — el middleware no la ve todavía en la primera carga.
+  if (pathname.startsWith("/reset-password")) return supabaseResponse;
+
   // Si ya está logueado e intenta ir al login → home
   if (pathname === "/login" && user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
+    const home = request.nextUrl.clone();
+    home.pathname = "/";
+    return NextResponse.redirect(home);
+  }
+  if (pathname === "/login") return supabaseResponse;
+
+  // Todo lo demás requiere sesión.
+  if (!user) {
+    const login = request.nextUrl.clone();
+    login.pathname = "/login";
+    login.searchParams.set("redirectTo", pathname);
+    return NextResponse.redirect(login);
   }
 
-  // /scan es completamente público — no redirigir nunca
-  // Todo lo demás pasa sin restricción (el inventario se protege desde el componente)
+  // Rol del usuario — se necesita para restringir páginas.
+  const { data: perfil } = await supabase.from("perfiles").select("rol").eq("id", user.id).single();
+  const rol = (perfil?.rol ?? null) as Rol | null;
+
+  // "scanner" solo puede usar el escáner.
+  if (rol === "scanner" && !pathname.startsWith("/scan")) {
+    const destino = request.nextUrl.clone();
+    destino.pathname = rutaPorDefecto(rol);
+    return NextResponse.redirect(destino);
+  }
+
+  // Gestión de usuarios y auditoría — solo "master".
+  if ((pathname.startsWith("/usuarios") || pathname.startsWith("/auditoria")) && rol !== "master") {
+    const destino = request.nextUrl.clone();
+    destino.pathname = rutaPorDefecto(rol);
+    return NextResponse.redirect(destino);
+  }
+
   return supabaseResponse;
 }

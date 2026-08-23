@@ -2,20 +2,24 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Package, Plus, Search, Printer, CheckSquare, Square, X, QrCode, Camera } from "lucide-react";
+import { Package, Plus, Search, Printer, CheckSquare, Square, X, QrCode, Camera, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { ItemCard } from "@/components/ItemCard";
 import { CreateItemForm } from "@/components/CreateItemForm";
 import { PrintPreviewModal } from "@/components/PrintPreviewModal";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Item, Categoria } from "@/lib/supabase";
 import { normalizeCategoryIcon } from "@/lib/category-icon";
+import { useAuth } from "@/lib/auth-context";
 
 type Tab = "disponible" | "usado";
 
 function InventarioContent() {
   const searchParams = useSearchParams();
   const catParam     = searchParams.get("cat");
+  const { puede } = useAuth();
+  const puedeGestionar = puede("gestionarItems");
 
   const [items, setItems]           = useState<Item[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -26,10 +30,13 @@ function InventarioContent() {
   const [busqueda, setBusqueda]     = useState("");
   const [apiError, setApiError]     = useState("");
 
-  // Selección múltiple para impresión
+  // Selección múltiple para impresión y eliminación
   const [modoSeleccion, setModoSeleccion]       = useState(false);
   const [seleccionados, setSeleccionados]       = useState<Set<string>>(new Set());
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [showBulkDelete, setShowBulkDelete]     = useState(false);
+  const [bulkDeleting, setBulkDeleting]         = useState(false);
+  const [bulkDeleteError, setBulkDeleteError]   = useState("");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -40,23 +47,25 @@ function InventarioContent() {
         fetch("/api/categorias"),
       ]);
 
+      const categoriasData = cr.ok ? await cr.json() : [];
+      const categoriasList: Categoria[] = Array.isArray(categoriasData) ? categoriasData : [];
+      const categoriasPorId = new Map(categoriasList.map(c => [c.id, c]));
+      setCategorias(categoriasList);
+
       if (!ir.ok) {
         const e = await ir.json().catch(() => ({}));
         setApiError(`Error: ${e.error ?? ir.status}. Revisa las variables de entorno en .env.local`);
       } else {
         const data = await ir.json();
         // Normalizar items — algunos pueden tener atributos null (datos migrados)
+        // y adjuntar su categoría desde la lista ya cargada (evita duplicar íconos por ítem)
         const normalized = (Array.isArray(data) ? data : []).map((item: Item) => ({
           ...item,
           atributos: item.atributos ?? {},
           cantidad:  item.cantidad  ?? 1,
+          categoria: categoriasPorId.get(item.categoria_id),
         }));
         setItems(normalized);
-      }
-
-      if (cr.ok) {
-        const data = await cr.json();
-        setCategorias(Array.isArray(data) ? data : []);
       }
     } catch (e: any) {
       setApiError(`Error de red: ${e?.message ?? "desconocido"}`);
@@ -94,6 +103,30 @@ function InventarioContent() {
 
   const itemsSeleccionados = items.filter(i => seleccionados.has(i.id));
 
+  async function confirmarEliminarSeleccionados() {
+    setBulkDeleting(true);
+    setBulkDeleteError("");
+    try {
+      const resultados = await Promise.all(
+        itemsSeleccionados.map(item => fetch(`/api/items/${item.id}`, { method: "DELETE" }))
+      );
+      const fallos = resultados.filter(r => !r.ok).length;
+      if (fallos > 0) {
+        setBulkDeleteError(`No se pudieron eliminar ${fallos} de ${resultados.length} producto(s)`);
+        setBulkDeleting(false);
+        fetchData();
+        return;
+      }
+      setShowBulkDelete(false);
+      setBulkDeleting(false);
+      salirModoSeleccion();
+      fetchData();
+    } catch (e: any) {
+      setBulkDeleteError(e?.message ?? "Error al eliminar los productos");
+      setBulkDeleting(false);
+    }
+  }
+
   return (
     <AppShell>
       <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4">
@@ -112,16 +145,18 @@ function InventarioContent() {
                   onClick={() => { setModoSeleccion(true); setShowForm(false); }}
                   className="flex items-center gap-2 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
                 >
-                  <Printer size={15} />
-                  <span className="hidden sm:inline">Imprimir</span>
+                  <CheckSquare size={15} />
+                  <span className="hidden sm:inline">Seleccionar</span>
                 </button>
-                <button
-                  onClick={() => setShowForm(v => !v)}
-                  className="flex items-center gap-2 py-2.5 px-4 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-sm active:scale-95 transition-all"
-                >
-                  <QrCode size={16} />
-                  {showForm ? "Cancelar" : "Crear QR"}
-                </button>
+                {puedeGestionar && (
+                  <button
+                    onClick={() => setShowForm(v => !v)}
+                    className="flex items-center gap-2 py-2.5 px-4 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-sm active:scale-95 transition-all"
+                  >
+                    <QrCode size={16} />
+                    {showForm ? "Cancelar" : "Crear QR"}
+                  </button>
+                )}
                 <Link
                   href="/scan"
                   className="flex items-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 shadow-sm transition-all"
@@ -152,15 +187,26 @@ function InventarioContent() {
           </div>
         </div>
 
-        {/* Botón imprimir lote */}
+        {/* Acciones de lote — imprimir / eliminar */}
         {modoSeleccion && seleccionados.size > 0 && (
-          <button
-            onClick={() => setShowPrintPreview(true)}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-sm"
-          >
-            <Printer size={16} />
-            Imprimir {seleccionados.size} etiqueta{seleccionados.size !== 1 ? "s" : ""}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowPrintPreview(true)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-sm"
+            >
+              <Printer size={16} />
+              Imprimir {seleccionados.size} etiqueta{seleccionados.size !== 1 ? "s" : ""}
+            </button>
+            {puedeGestionar && (
+              <button
+                onClick={() => { setBulkDeleteError(""); setShowBulkDelete(true); }}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm hover:bg-red-700 shadow-sm"
+              >
+                <Trash2 size={16} />
+                Eliminar {seleccionados.size}
+              </button>
+            )}
+          </div>
         )}
 
         {modoSeleccion && seleccionados.size === 0 && (
@@ -278,6 +324,18 @@ function InventarioContent() {
           onClose={() => setShowPrintPreview(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={showBulkDelete}
+        title={`¿Eliminar ${seleccionados.size} producto${seleccionados.size !== 1 ? "s" : ""}?`}
+        description="Esta acción no se puede deshacer."
+        error={bulkDeleteError}
+        loading={bulkDeleting}
+        confirmLabel="Eliminar"
+        requireTypedWord="eliminar"
+        onConfirm={confirmarEliminarSeleccionados}
+        onCancel={() => !bulkDeleting && setShowBulkDelete(false)}
+      />
     </AppShell>
   );
 }

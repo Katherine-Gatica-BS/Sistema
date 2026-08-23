@@ -3,16 +3,29 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Package, Tag, LogOut, ChevronRight, QrCode } from "lucide-react";
+import { LayoutDashboard, Package, Tag, LogOut, ChevronRight, QrCode, Users, History, KeyRound, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { LogoCortinaqrHorizontal, LogoCortinaqr } from "@/components/Logo";
+import { ROLES, type Rol } from "@/lib/permissions";
+import { createClient } from "@/lib/supabase-browser";
 
-const NAV = [
+const NAV_BASE = [
   { href: "/",           icon: LayoutDashboard, label: "Dashboard"  },
   { href: "/inventario", icon: Package,          label: "Inventario" },
   { href: "/categorias", icon: Tag,              label: "Categorías" },
   { href: "/scan",       icon: QrCode,           label: "Escanear"   },
 ];
+
+const NAV_MASTER = [
+  { href: "/usuarios",  icon: Users,   label: "Usuarios"   },
+  { href: "/auditoria", icon: History, label: "Auditoría"  },
+];
+
+function navPara(rol: Rol | undefined) {
+  if (rol === "scanner") return NAV_BASE.filter(n => n.href === "/scan");
+  if (rol === "master")  return [...NAV_BASE, ...NAV_MASTER];
+  return NAV_BASE;
+}
 
 function ClientDate() {
   const [fecha, setFecha] = useState("");
@@ -27,12 +40,29 @@ function ClientDate() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
-  const { user, signOut } = useAuth();
-  const initials = user?.email?.slice(0, 2).toUpperCase() ?? "??";
+  const { user, perfil, signOut } = useAuth();
+  const initials = perfil?.nombre?.slice(0, 2).toUpperCase() ?? user?.email?.slice(0, 2).toUpperCase() ?? "??";
+  const nombreMostrado = perfil?.nombre ?? user?.email ?? "";
+  const rolLabel = ROLES.find(r => r.valor === perfil?.rol)?.label;
+  const NAV = navPara(perfil?.rol);
+  const [cambiandoPassword, setCambiandoPassword] = useState(false);
+  const [mensajeCambio, setMensajeCambio] = useState("");
 
   async function handleSignOut() {
     await signOut();
     router.push("/login");
+  }
+
+  async function handleCambiarPassword() {
+    if (!user?.email) return;
+    setCambiandoPassword(true);
+    setMensajeCambio("");
+    const supabase = createClient();
+    await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setCambiandoPassword(false);
+    setMensajeCambio("Te enviamos un enlace a tu correo para crear una nueva contraseña.");
   }
 
   return (
@@ -74,12 +104,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-slate-300 truncate">{user.email}</p>
+                <p className="text-xs font-medium text-slate-300 truncate">{nombreMostrado}</p>
+                {rolLabel && <p className="text-[11px] text-slate-500 truncate">{rolLabel}</p>}
               </div>
               <button onClick={handleSignOut} title="Cerrar sesión"
                 className="text-slate-500 hover:text-red-400 transition-colors">
                 <LogOut size={15} />
               </button>
+            </div>
+          )}
+          {user && (
+            <div className="px-2 space-y-1.5">
+              <button onClick={handleCambiarPassword} disabled={cambiandoPassword}
+                className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors disabled:opacity-50">
+                {cambiandoPassword ? <Loader2 size={13} className="animate-spin" /> : <KeyRound size={13} />}
+                Cambiar contraseña
+              </button>
+              {mensajeCambio && (
+                <p className="text-[11px] text-emerald-400 leading-snug">{mensajeCambio}</p>
+              )}
             </div>
           )}
           <div className="px-2 pt-2 border-t border-slate-700/40">
@@ -108,7 +151,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="w-6 h-6 rounded-full bg-sky-500 flex items-center justify-center text-xs text-white font-semibold">
                 {initials}
               </div>
-              <span className="max-w-xs truncate">{user.email}</span>
+              <span className="max-w-xs truncate">{nombreMostrado}</span>
             </div>
           )}
         </header>

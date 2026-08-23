@@ -105,7 +105,19 @@ export function PrintPreviewModal({ items, onClose }: Props) {
     const win = window.open("", "_blank");
     if (!win) { alert("El navegador bloqueó la ventana. Permite pop-ups para este sitio."); return; }
 
-    const fontBase = Math.max(4.5, Math.min(8, altoMm * 0.22));
+    // Todas las medidas se calculan en mm de forma explícita (nada de % ni flex-basis)
+    // para que ambos lados (QR y texto) respeten siempre el tamaño configurado,
+    // sin importar qué tan chico o grande sea, y sin que uno se estire más que el otro.
+    const padX      = Math.min(2.5, anchoMm * 0.06);
+    const padY      = Math.min(2, altoMm * 0.08);
+    const sepW      = 0.4;
+    const gap       = Math.min(2, anchoMm * 0.04);
+    const anchoUtil = anchoMm - padX * 2;
+    const altoUtil  = altoMm - padY * 2;
+    const qrSize    = Math.max(5, Math.min(altoUtil, anchoUtil * 0.42));
+    const txtWidth  = Math.max(5, anchoUtil - qrSize - sepW - gap * 2);
+    const fontBase  = Math.max(4.5, Math.min(8, altoMm * 0.22));
+
     const etiquetasHTML = items.map((item, idx) => {
       const qr = qrMap[item.id] ?? "";
       const cat = item.categoria;
@@ -122,15 +134,17 @@ export function PrintPreviewModal({ items, onClose }: Props) {
 
       const breakStyle = isLast ? "" : 'style="page-break-after:always;break-after:page;"';
 
-      return `<div class="label" ${breakStyle}>
-  <div class="qr-col">
-    <img src="${qr}" class="qr-img" />
-  </div>
-  <div class="sep"></div>
-  <div class="txt-col">
-    <div class="cat-txt">${cat?.nombre ?? ""}</div>
-    <table class="tbl">${filas}</table>
-    <div class="id-txt">#${item.id.slice(0, 10).toUpperCase()}</div>
+      return `<div class="page" ${breakStyle}>
+  <div class="label">
+    <div class="qr-col">
+      <img src="${qr}" class="qr-img" />
+    </div>
+    <div class="sep"></div>
+    <div class="txt-col">
+      <div class="cat-txt">${cat?.nombre ?? ""}</div>
+      <table class="tbl">${filas}</table>
+      <div class="id-txt">#${item.id.slice(0, 10).toUpperCase()}</div>
+    </div>
   </div>
 </div>`;
     }).join("\n");
@@ -149,53 +163,60 @@ export function PrintPreviewModal({ items, onClose }: Props) {
 
 html, body {
   width: ${anchoMm}mm;
-  height: ${altoMm}mm;
   font-family: Arial, Helvetica, sans-serif;
   background: #fff;
 }
 
-.label {
+.page {
   width: ${anchoMm}mm;
   height: ${altoMm}mm;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.label {
+  width: ${anchoUtil}mm;
+  height: ${altoUtil}mm;
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 1.5mm 2mm;
-  gap: 0;
+  justify-content: center;
+  gap: ${gap}mm;
   overflow: hidden;
 }
 
 .qr-col {
-  flex: 0 0 40%;
+  width: ${qrSize}mm;
+  height: ${qrSize}mm;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  overflow: hidden;
 }
 .qr-img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   display: block;
   object-fit: contain;
 }
 
 .sep {
-  flex: 0 0 0.5mm;
-  height: 80%;
+  width: ${sepW}mm;
+  height: ${Math.max(4, altoUtil * 0.8)}mm;
+  flex: none;
   background: #ccc;
-  margin: 0 1.5mm;
 }
 
 .txt-col {
-  flex: 1 1 0;
-  min-width: 0;
-  height: 100%;
+  width: ${txtWidth}mm;
+  height: ${altoUtil}mm;
+  flex: none;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0;
   overflow: hidden;
 }
 
@@ -206,12 +227,14 @@ html, body {
   letter-spacing: 0.4pt;
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
   margin-bottom: 0.8mm;
 }
 
 .tbl {
   border-collapse: collapse;
   width: 100%;
+  table-layout: fixed;
 }
 .tbl td {
   font-size: ${fontBase}pt;
@@ -225,6 +248,8 @@ html, body {
   width: 40%;
   padding-right: 0.5mm;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tbl .val {
   color: #000;
@@ -232,7 +257,6 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 0;
 }
 
 .id-txt {
@@ -241,6 +265,8 @@ html, body {
   font-family: monospace;
   margin-top: 1mm;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
 </head>
@@ -273,8 +299,17 @@ window.addEventListener('load', function() {
         </div>
 
         <div className="p-5 space-y-5">
+          <div className="flex items-center justify-between rounded-xl border border-sky-100 bg-sky-50 px-4 py-2.5 text-sm text-sky-800">
+            <span>
+              Tamaño de etiqueta guardado: <strong>{anchoMm} × {altoMm} mm</strong> — se usará siempre por defecto.
+            </span>
+            <button type="button" onClick={() => setShowConfig(v => !v)} className="text-xs font-semibold text-sky-700 hover:underline">
+              {showConfig ? "Ocultar" : "Cambiar"}
+            </button>
+          </div>
+
           {showConfig && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="text-sm text-slate-700">
                   <span className="mb-1 block font-medium">Ancho (mm)</span>
@@ -299,6 +334,25 @@ window.addEventListener('load', function() {
                   />
                 </label>
               </div>
+              <div className="flex flex-wrap gap-2">
+                {[{ a: 50, h: 30 }, { a: 40, h: 30 }, { a: 60, h: 40 }, { a: 100, h: 50 }].map(p => (
+                  <button
+                    key={`${p.a}x${p.h}`}
+                    type="button"
+                    onClick={() => { setAnchoMm(p.a); setAltoMm(p.h); }}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      anchoMm === p.a && altoMm === p.h
+                        ? "border-sky-500 bg-sky-50 text-sky-700"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {p.a} × {p.h} mm
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400">
+                El tamaño se guarda automáticamente en este navegador y se usará por defecto la próxima vez que imprimas.
+              </p>
             </div>
           )}
 

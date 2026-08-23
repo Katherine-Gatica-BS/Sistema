@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-service";
+import { getUsuarioActual } from "@/lib/current-user";
+import { puede } from "@/lib/permissions";
+import { registrarAuditoria } from "@/lib/audit";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createServiceClient();
@@ -11,6 +14,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(_req: NextRequest, { params }: { params: { id: string } }) {
+  const usuario = await getUsuarioActual();
+  if (!usuario) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!puede(usuario.rol, "gestionarItems"))
+    return NextResponse.json({ error: "No tienes permiso para modificar ítems" }, { status: 403 });
+
   const supabase = createServiceClient();
 
   const { data: item } = await supabase
@@ -28,12 +36,29 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await registrarAuditoria({
+    usuario_id: usuario.id, usuario_nombre: usuario.nombre,
+    accion: "marcar_usado", entidad: "item", entidad_id: params.id,
+  });
+
   return NextResponse.json(data);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const usuario = await getUsuarioActual();
+  if (!usuario) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!puede(usuario.rol, "gestionarItems"))
+    return NextResponse.json({ error: "No tienes permiso para eliminar ítems" }, { status: 403 });
+
   const supabase = createServiceClient();
   const { error } = await supabase.from("items").delete().eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await registrarAuditoria({
+    usuario_id: usuario.id, usuario_nombre: usuario.nombre,
+    accion: "eliminar", entidad: "item", entidad_id: params.id,
+  });
+
   return NextResponse.json({ ok: true });
 }

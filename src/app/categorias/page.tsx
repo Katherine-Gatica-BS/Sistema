@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/AppShell";
 import { Categoria, CampoSchema } from "@/lib/supabase";
 import { normalizeCategoryIcon } from "@/lib/category-icon";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const COLORES = [
   "#0ea5e9","#10b981","#f59e0b","#8b5cf6",
@@ -35,17 +36,36 @@ function CategoriaForm({
   error: string;
 }) {
   const esEdicion = !!inicial;
-  const camposExistentes = inicial?.campos ?? [];
 
   const [nombre, setNombre] = useState(inicial?.nombre ?? "");
   const [icono,  setIcono]  = useState(inicial?.icono  ?? "");
   const [color,  setColor]  = useState(inicial?.color  ?? "#0ea5e9");
-  // Al editar: campos existentes fijos + nuevos que el usuario agrega
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const [errorImagen, setErrorImagen] = useState("");
+  // Campos existentes — ahora editables y eliminables
+  const [camposActuales, setCamposActuales] = useState<CampoSchema[]>(inicial?.campos ?? []);
+  const [opcionesTextoActuales, setOpcionesTextoActuales] = useState<Record<number, string>>({});
+  const [campoAEliminar, setCampoAEliminar] = useState<number | null>(null);
+  // Al editar: campos existentes + nuevos que el usuario agrega
   const [camposNuevos, setCamposNuevos] = useState<CampoSchema[]>(
     esEdicion ? [] : [{ ...CAMPO_VACÍO, requerido: true }]
   );
   const [opcionesTexto, setOpcionesTexto] = useState<Record<number, string>>({});
 
+  function updateCampoActual(i: number, key: keyof CampoSchema, val: string | boolean | string[]) {
+    setCamposActuales(p => p.map((c, idx) => idx === i ? { ...c, [key]: val } : c));
+  }
+  function confirmarRemoverCampoActual() {
+    if (campoAEliminar === null) return;
+    const idx = campoAEliminar;
+    setCamposActuales(p => p.filter((_, i) => i !== idx));
+    setOpcionesTextoActuales(p => Object.fromEntries(
+      Object.entries(p)
+        .filter(([key]) => Number(key) !== idx)
+        .map(([key, value]) => [Number(key) > idx ? Number(key) - 1 : Number(key), value])
+    ));
+    setCampoAEliminar(null);
+  }
   function addCampo() {
     setCamposNuevos(p => [...p, { ...CAMPO_VACÍO }]);
   }
@@ -68,16 +88,31 @@ function CategoriaForm({
 
   async function handleImageFile(file: File) {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      if (result) setIcono(result);
-    };
-    reader.readAsDataURL(file);
+    setErrorImagen("");
+    setSubiendoImagen(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/categorias/upload-icon", { method: "POST", body: form });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "No se pudo subir la imagen");
+      setIcono(json.url);
+    } catch (e) {
+      setErrorImagen(e instanceof Error ? e.message : "No se pudo subir la imagen");
+    } finally {
+      setSubiendoImagen(false);
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const camposActualesNormalizados = camposActuales.map((campo, i) => ({
+      ...campo,
+      opciones: campo.tipo === "select"
+        ? (opcionesTextoActuales[i] ?? campo.opciones?.join(", ") ?? "")
+            .split(",").map(opcion => opcion.trim()).filter(Boolean)
+        : undefined,
+    }));
     const camposNuevosNormalizados = camposNuevos.map((campo, i) => ({
       ...campo,
       opciones: campo.tipo === "select"
@@ -85,7 +120,7 @@ function CategoriaForm({
             .split(",").map(opcion => opcion.trim()).filter(Boolean)
         : undefined,
     }));
-    const todosLosCampos = [...camposExistentes, ...camposNuevosNormalizados];
+    const todosLosCampos = [...camposActualesNormalizados, ...camposNuevosNormalizados];
     if (!todosLosCampos.length) return;
     if (!icono.trim()) {
       onGuardar({ nombre: nombre.trim(), icono: "/icon-192.png", color, campos: todosLosCampos });
@@ -132,13 +167,22 @@ function CategoriaForm({
             <input
               type="file"
               accept="image/*"
+              disabled={subiendoImagen}
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
                 await handleImageFile(file);
               }}
-              className="block w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-sky-50 file:text-sky-700 file:font-medium hover:file:bg-sky-100"
+              className="block w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-sky-50 file:text-sky-700 file:font-medium hover:file:bg-sky-100 disabled:opacity-50"
             />
+            {subiendoImagen && (
+              <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                <Loader2 size={12} className="animate-spin" /> Subiendo imagen...
+              </p>
+            )}
+            {errorImagen && (
+              <p className="text-xs text-red-600">{errorImagen}</p>
+            )}
           </div>
         </div>
 
@@ -157,21 +201,55 @@ function CategoriaForm({
         </div>
       </div>
 
-      {/* Campos existentes — solo lectura */}
-      {esEdicion && camposExistentes.length > 0 && (
+      {/* Campos existentes — editables y eliminables */}
+      {esEdicion && camposActuales.length > 0 && (
         <div>
-          <p className="text-sm font-semibold text-slate-700 mb-2">
-            Campos actuales
-            <span className="text-xs font-normal text-slate-400 ml-2">(no se pueden eliminar)</span>
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {camposExistentes.map(c => (
-              <span key={c.nombre}
-                className="flex items-center gap-1.5 bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 flex-shrink-0" />
-                {c.label}
-                {c.requerido && <span className="text-red-400">*</span>}
-              </span>
+          <p className="text-sm font-semibold text-slate-700 mb-2">Campos actuales</p>
+          <div className="space-y-2">
+            {camposActuales.map((campo, i) => (
+              <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={campo.label}
+                    onChange={e => updateCampoActual(i, "label", e.target.value)}
+                    placeholder="Nombre del campo"
+                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                  />
+                  <select
+                    value={campo.tipo}
+                    onChange={e => updateCampoActual(i, "tipo", e.target.value)}
+                    className="rounded-lg border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                  >
+                    <option value="text">Texto</option>
+                    <option value="number">Número</option>
+                    <option value="select">Opciones</option>
+                  </select>
+                  <button type="button" onClick={() => setCampoAEliminar(i)}
+                    className="text-slate-300 hover:text-red-400 transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+
+                {campo.tipo === "select" && (
+                  <input
+                    value={opcionesTextoActuales[i] ?? campo.opciones?.join(", ") ?? ""}
+                    onChange={e => {
+                      const texto = e.target.value;
+                      setOpcionesTextoActuales(p => ({ ...p, [i]: texto }));
+                      updateCampoActual(i, "opciones", texto.split(",").map(s => s.trim()).filter(Boolean));
+                    }}
+                    placeholder="Opciones separadas por coma: bodega A, bodega B"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                )}
+
+                <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer w-fit">
+                  <input type="checkbox" checked={campo.requerido}
+                    onChange={e => updateCampoActual(i, "requerido", e.target.checked)}
+                    className="rounded" />
+                  Campo obligatorio
+                </label>
+              </div>
             ))}
           </div>
         </div>
@@ -262,7 +340,7 @@ function CategoriaForm({
         <div>
           <p className="font-semibold text-slate-800">{nombre || "Nombre de categoría"}</p>
           <p className="text-xs text-slate-400">
-            {camposExistentes.length + camposNuevos.length} campo(s) en total
+            {camposActuales.length + camposNuevos.length} campo(s) en total
           </p>
         </div>
       </div>
@@ -281,6 +359,15 @@ function CategoriaForm({
           {guardando ? <><Loader2 size={15} className="animate-spin" /> Guardando...</> : "Guardar categoría"}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={campoAEliminar !== null}
+        title="¿Eliminar este campo?"
+        description="Se quitará de la categoría. Los productos ya creados conservan su valor guardado, pero dejará de mostrarse y editarse."
+        confirmLabel="Eliminar campo"
+        onConfirm={confirmarRemoverCampoActual}
+        onCancel={() => setCampoAEliminar(null)}
+      />
     </form>
   );
 }
@@ -288,11 +375,12 @@ function CategoriaForm({
 
 /* ── Tarjeta de categoría ───────────────────────────────────── */
 function CategoriaCard({
-  cat, onEdit, onDelete,
+  cat, onEdit, onDelete, puedeGestionar,
 }: {
   cat: Categoria;
   onEdit: (c: Categoria) => void;
   onDelete: (c: Categoria) => void;
+  puedeGestionar: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -309,14 +397,18 @@ function CategoriaCard({
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => onEdit(cat)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors">
-            <Pencil size={15} />
-          </button>
-          <button onClick={() => onDelete(cat)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-            <Trash2 size={15} />
-          </button>
+          {puedeGestionar && (
+            <>
+              <button onClick={() => onEdit(cat)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors">
+                <Pencil size={15} />
+              </button>
+              <button onClick={() => onDelete(cat)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                <Trash2 size={15} />
+              </button>
+            </>
+          )}
           <button onClick={() => setOpen(v => !v)}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors">
             {open ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
@@ -345,7 +437,8 @@ function CategoriaCard({
 
 /* ── Página principal ───────────────────────────────────────── */
 export default function CategoriasPage() {
-  const { user } = useAuth();
+  const { user, puede } = useAuth();
+  const puedeGestionar = puede("gestionarCategorias");
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading]       = useState(true);
   const [modo, setModo]             = useState<"lista" | "crear" | "editar">("lista");
@@ -353,6 +446,8 @@ export default function CategoriasPage() {
   const [guardando, setGuardando]   = useState(false);
   const [error, setError]           = useState("");
   const [eliminando, setEliminando] = useState<Categoria | null>(null);
+  const [eliminandoLoading, setEliminandoLoading] = useState(false);
+  const [eliminandoError, setEliminandoError]     = useState("");
 
   const fetch_ = useCallback(async () => {
     const res = await fetch("/api/categorias");
@@ -388,18 +483,23 @@ export default function CategoriasPage() {
   }
 
   async function handleDelete(cat: Categoria) {
+    setEliminandoError("");
     setEliminando(cat);
   }
 
   async function confirmarDelete() {
     if (!eliminando) return;
+    setEliminandoLoading(true);
+    setEliminandoError("");
     const res = await fetch(`/api/categorias/${eliminando.id}`, { method: "DELETE" });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      alert(json.error ?? "Error al eliminar");
-    } else {
-      fetch_();
+      setEliminandoError(json.error ?? "Error al eliminar");
+      setEliminandoLoading(false);
+      return;
     }
+    fetch_();
+    setEliminandoLoading(false);
     setEliminando(null);
   }
 
@@ -413,7 +513,7 @@ export default function CategoriasPage() {
             <h2 className="lg:hidden text-lg font-bold text-slate-800">Categorías</h2>
             <p className="text-sm text-slate-400">{categorias.length} categorías</p>
           </div>
-          {modo === "lista" && (
+          {modo === "lista" && puedeGestionar && (
             <button onClick={() => { setModo("crear"); setError(""); }}
               className="flex items-center gap-2 py-2.5 px-4 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-sm">
               <Plus size={16} /> Nueva categoría
@@ -444,10 +544,12 @@ export default function CategoriasPage() {
             <div className="text-center py-20 text-slate-400">
               <Tag size={40} className="mx-auto mb-3 opacity-30" />
               <p className="font-medium">Sin categorías aún</p>
-              <button onClick={() => setModo("crear")}
-                className="text-sm text-sky-500 mt-2 hover:underline">
-                Crear la primera
-              </button>
+              {puedeGestionar && (
+                <button onClick={() => setModo("crear")}
+                  className="text-sm text-sky-500 mt-2 hover:underline">
+                  Crear la primera
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -455,6 +557,7 @@ export default function CategoriasPage() {
                 <CategoriaCard key={cat.id} cat={cat}
                   onEdit={c => { setEditando(c); setModo("editar"); setError(""); }}
                   onDelete={handleDelete}
+                  puedeGestionar={puedeGestionar}
                 />
               ))}
             </div>
@@ -463,34 +566,17 @@ export default function CategoriasPage() {
       </div>
 
       {/* Modal confirmación eliminar */}
-      {eliminando && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                <img src={normalizeCategoryIcon(eliminando.icono) ?? "/icon-192.png"} alt={eliminando.nombre} className="w-full h-full object-cover" />
-              </div>
-              <div>
-                <p className="font-bold text-slate-800">¿Eliminar "{eliminando.nombre}"?</p>
-                <p className="text-sm text-slate-500">Esta acción no se puede deshacer</p>
-              </div>
-            </div>
-            <p className="text-sm text-slate-600 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-              Solo se puede eliminar si no tiene productos asociados.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setEliminando(null)}
-                className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50">
-                Cancelar
-              </button>
-              <button onClick={confirmarDelete}
-                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm hover:bg-red-700">
-                Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!eliminando}
+        title={eliminando ? `¿Eliminar "${eliminando.nombre}"?` : ""}
+        description="Esta acción no se puede deshacer."
+        detail="Solo se puede eliminar si no tiene productos asociados."
+        error={eliminandoError}
+        loading={eliminandoLoading}
+        confirmLabel="Eliminar"
+        onConfirm={confirmarDelete}
+        onCancel={() => !eliminandoLoading && setEliminando(null)}
+      />
     </AppShell>
   );
 }

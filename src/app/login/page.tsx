@@ -2,31 +2,43 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Package, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowLeft, MailCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase-browser";
+import { nombreAEmail } from "@/lib/usuario-email";
+import { LogoCortinaqr } from "@/components/Logo";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/";
 
-  const [email, setEmail] = useState("");
+  const [modo, setModo] = useState<"login" | "recuperar">("login");
+
+  const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [recuperarUsuario, setRecuperarUsuario] = useState("");
+  const [recuperarLoading, setRecuperarLoading] = useState(false);
+  const [recuperarError, setRecuperarError] = useState("");
+  const [recuperarEnviado, setRecuperarEnviado] = useState(false);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
-    if (!email || !password) {
+    if (!usuario || !password) {
       setError("Completa todos los campos");
       return;
     }
 
     setLoading(true);
     const supabase = createClient();
+
+    // Acepta tanto "usuario" simple como un correo completo (por compatibilidad).
+    const email = usuario.includes("@") ? usuario : nombreAEmail(usuario);
 
     const { error: authError } = await supabase.auth.signInWithPassword({
       email,
@@ -36,7 +48,7 @@ function LoginForm() {
     if (authError) {
       // Mensaje en español para los errores más comunes
       if (authError.message.includes("Invalid login credentials")) {
-        setError("Correo o contraseña incorrectos");
+        setError("Usuario o contraseña incorrectos");
       } else if (authError.message.includes("Email not confirmed")) {
         setError("Debes confirmar tu correo antes de ingresar");
       } else {
@@ -51,13 +63,102 @@ function LoginForm() {
     router.refresh();
   }
 
+  async function handleRecuperar(e: React.FormEvent) {
+    e.preventDefault();
+    setRecuperarError("");
+
+    if (!recuperarUsuario.trim()) {
+      setRecuperarError("Ingresa tu usuario o correo");
+      return;
+    }
+
+    setRecuperarLoading(true);
+    const supabase = createClient();
+    const email = recuperarUsuario.includes("@") ? recuperarUsuario : nombreAEmail(recuperarUsuario);
+
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    // Siempre mostramos éxito (aunque el usuario no exista) para no filtrar qué cuentas existen.
+    setRecuperarLoading(false);
+    setRecuperarEnviado(true);
+  }
+
+  if (modo === "recuperar") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-slate-50">
+        <div className="w-full max-w-sm space-y-8">
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-brand-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <MailCheck size={28} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800">Recuperar contraseña</h1>
+            <p className="text-slate-500 text-sm mt-1">
+              Te enviaremos un enlace a tu correo registrado para crear una nueva contraseña.
+            </p>
+          </div>
+
+          {recuperarEnviado ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4 text-center">
+              <p className="text-sm text-slate-600">
+                Si tu usuario tiene un correo válido registrado, te llegará un mensaje con las instrucciones para cambiar tu contraseña.
+              </p>
+              <button
+                onClick={() => { setModo("login"); setRecuperarEnviado(false); setRecuperarUsuario(""); }}
+                className="w-full py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 flex items-center justify-center gap-2"
+              >
+                <ArrowLeft size={15} /> Volver a iniciar sesión
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleRecuperar} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Usuario o correo</label>
+                <input
+                  type="text"
+                  value={recuperarUsuario}
+                  onChange={(e) => setRecuperarUsuario(e.target.value)}
+                  placeholder="tu usuario"
+                  autoComplete="username"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-shadow"
+                />
+              </div>
+
+              {recuperarError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                  {recuperarError}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={recuperarLoading}
+                className="w-full py-3 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+              >
+                {recuperarLoading ? <><Loader2 size={16} className="animate-spin" /> Enviando...</> : "Enviar enlace"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setModo("login")}
+                className="w-full text-xs text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft size={13} /> Volver a iniciar sesión
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-slate-50">
       <div className="w-full max-w-sm space-y-8">
         {/* Logo / Brand */}
         <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-brand-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Package size={28} className="text-white" />
+          <div className="w-16 h-16 rounded-2xl bg-slate-900 flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <LogoCortinaqr size={40} />
           </div>
           <h1 className="text-2xl font-bold text-slate-800">Inventario Conos</h1>
           <p className="text-slate-500 text-sm mt-1">Ingresa con tu cuenta autorizada</p>
@@ -67,22 +168,31 @@ function LoginForm() {
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
-              Correo electrónico
+              Usuario
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@correo.com"
-              autoComplete="email"
+              type="text"
+              value={usuario}
+              onChange={(e) => setUsuario(e.target.value)}
+              placeholder="tu usuario"
+              autoComplete="username"
               className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-shadow"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">
-              Contraseña
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-medium text-slate-500">
+                Contraseña
+              </label>
+              <button
+                type="button"
+                onClick={() => setModo("recuperar")}
+                className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}

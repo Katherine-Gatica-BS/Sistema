@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
-import { CheckCircle2, XCircle, AlertCircle, Loader2, Camera, RotateCcw, Package } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { CheckCircle2, XCircle, AlertCircle, Loader2, Camera, RotateCcw, Package, LogOut } from "lucide-react";
 import Link from "next/link";
 import jsQR from "jsqr";
 import { normalizeCategoryIcon } from "@/lib/category-icon";
+import { useAuth } from "@/lib/auth-context";
 
 type Pantalla = "camara" | "confirmacion" | "procesando" | "exito" | "ya_usado" | "no_encontrado" | "error";
 
@@ -20,7 +21,9 @@ interface ItemInfo {
 
 export default function ScanPage() {
   const searchParams  = useSearchParams();
+  const router        = useRouter();
   const idParam       = searchParams.get("id");
+  const { user, puede, signOut } = useAuth();
 
   const [pantalla, setPantalla]         = useState<Pantalla>(idParam ? "procesando" : "camara");
   const [item, setItem]                 = useState<ItemInfo | null>(null);
@@ -175,19 +178,45 @@ export default function ScanPage() {
     setPantalla("camara");
   }
 
+  async function handleLogout() {
+    detener();
+    await signOut();
+    router.push("/login");
+  }
+
+  function BarraSuperior({ dark }: { dark?: boolean }) {
+    if (!user) return null;
+    return (
+      <div className={`absolute top-0 inset-x-0 px-4 pt-4 flex items-center justify-end gap-2 z-10 ${dark ? "" : ""}`}>
+        {puede("verDashboard") && (
+          <Link href="/inventario"
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              dark ? "text-slate-400 hover:text-white border-slate-700" : "text-slate-500 hover:text-slate-800 border-slate-200"
+            }`}>
+            Inventario
+          </Link>
+        )}
+        <button onClick={handleLogout}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+            dark ? "text-slate-400 hover:text-red-400 border-slate-700" : "text-slate-500 hover:text-red-500 border-slate-200"
+          }`}>
+          <LogOut size={13} /> Cerrar sesión
+        </button>
+      </div>
+    );
+  }
+
   const cat   = (item ?? itemPrevio)?.categoria;
   const attrs = Object.entries((item ?? itemPrevio)?.atributos ?? {});
 
   // ── CÁMARA ────────────────────────────────────────────────────
   if (pantalla === "camara") return (
-    <div className="min-h-screen bg-slate-900 flex flex-col">
-      <div className="px-4 pt-10 pb-3 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-900 flex flex-col relative">
+      <BarraSuperior dark />
+      <div className="px-4 pt-10 pb-3 flex items-center justify-center">
         <p className="text-white font-semibold text-sm flex items-center gap-2">
           <Camera size={16} className="text-sky-400" /> Escanear QR
         </p>
-        <Link href="/inventario" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded-lg border border-slate-700">
-          Inventario
-        </Link>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 gap-5">
@@ -226,7 +255,8 @@ export default function ScanPage() {
   if (pantalla === "confirmacion" && itemPrevio) {
     const cantidad = itemPrevio.cantidad ?? 1;
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6 relative">
+        <BarraSuperior />
         <div className="max-w-sm w-full space-y-5">
           <div className="text-center">
             <div className="w-20 h-20 mx-auto mb-3 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50">
@@ -279,7 +309,8 @@ export default function ScanPage() {
 
   // ── RESULTADOS ────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6 text-center">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6 text-center relative">
+      <BarraSuperior />
       <div className="max-w-sm w-full space-y-6">
         {pantalla === "exito" && item && (
           <>

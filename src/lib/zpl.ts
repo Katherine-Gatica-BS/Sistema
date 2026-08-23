@@ -39,8 +39,8 @@ export function generarZPL(item: LabelData, opts?: {
   const anchoMm = opts?.anchoMm ?? 50;
   const altoMm  = opts?.altoMm  ?? 30;
   const DOTS    = 8; // 203 dpi ≈ 8 dots/mm
-  const PW      = anchoMm * DOTS;  // 400
-  const LL      = altoMm  * DOTS;  // 240
+  const PW      = Math.round(anchoMm * DOTS);
+  const LL      = Math.round(altoMm  * DOTS);
 
   const scanUrl = `${APP_URL}/scan?id=${item.id}`;
   const idCorto = item.id.slice(0, 12).toUpperCase();
@@ -56,6 +56,25 @@ export function generarZPL(item: LabelData, opts?: {
     .map(([, v]) => v.slice(0, 28))
     .filter(Boolean);
 
+  // ── Layout proporcional al tamaño configurado (nada de coordenadas fijas) ──
+  const margin      = Math.round(Math.min(10, PW * 0.02));
+  const qrAreaW     = Math.round(Math.min(PW * 0.42, LL - margin * 2)); // el QR es cuadrado
+  const qrMagnif    = Math.max(1, Math.min(10, Math.round((qrAreaW / DOTS) / 6.25))); // mag 4 ≈ 25mm
+  const dividerX    = margin + qrAreaW + margin;
+  const textX       = dividerX + margin + 8;
+  const textW       = PW - textX - margin;
+
+  const fontCat     = Math.max(10, Math.round(LL * 0.06));
+  const fontTitulo  = Math.max(14, Math.round(LL * 0.09));
+  const fontSub     = Math.max(11, Math.round(LL * 0.07));
+  const fontAttr    = Math.max(10, Math.round(LL * 0.06));
+  const fontId      = Math.max(9,  Math.round(LL * 0.05));
+
+  const yCat     = margin;
+  const yTitulo  = yCat + fontCat + 6;
+  const ySub     = yTitulo + fontTitulo + 4;
+  const yAttrs0  = ySub + (subtitulo ? fontSub + 6 : 0);
+
   return [
     "^XA",
     `^PW${PW}`,        // ancho del papel
@@ -63,28 +82,28 @@ export function generarZPL(item: LabelData, opts?: {
     "^LH0,0",          // home label
     "^CI28",           // UTF-8
 
-    // QR Code nativo (alto=4 → ~25mm, corrección M)
-    `^FO10,10`,
-    `^BQN,2,4,M,7`,
+    // QR Code nativo — tamaño proporcional al área calculada
+    `^FO${margin},${margin}`,
+    `^BQN,2,${qrMagnif},M,7`,
     `^FDMA,${scanUrl}^FS`,
 
-    // Línea divisoria vertical
-    `^FO110,5^GB2,${LL - 10},2^FS`,
+    // Línea divisoria vertical — posicionada según el ancho real del QR
+    `^FO${dividerX},${margin}^GB2,${LL - margin * 2},2^FS`,
 
-    // Categoría — pequeño, gris (simulado con fuente pequeña)
-    `^FO118,8^A0N,14,14^FD${catText}^FS`,
+    // Categoría — pequeño
+    `^FO${textX},${yCat}^A0N,${fontCat},${fontCat}^FB${textW},1,0,L^FD${catText}^FS`,
 
     // Título — grande y negrita
-    `^FO118,26^A0N,20,20^FD${titulo}^FS`,
+    `^FO${textX},${yTitulo}^A0N,${fontTitulo},${fontTitulo}^FB${textW},1,0,L^FD${titulo}^FS`,
 
     // Subtítulo
-    ...(subtitulo ? [`^FO118,50^A0N,16,16^FD${subtitulo}^FS`] : []),
+    ...(subtitulo ? [`^FO${textX},${ySub}^A0N,${fontSub},${fontSub}^FB${textW},1,0,L^FD${subtitulo}^FS`] : []),
 
     // Atributos adicionales
-    ...attrLineas.map((v, i) => `^FO118,${70 + i * 18}^A0N,14,14^FD${v}^FS`),
+    ...attrLineas.map((v, i) => `^FO${textX},${yAttrs0 + i * (fontAttr + 4)}^A0N,${fontAttr},${fontAttr}^FB${textW},1,0,L^FD${v}^FS`),
 
     // ID corto en la parte inferior
-    `^FO118,${LL - 24}^A0N,12,12^FD#${idCorto}^FS`,
+    `^FO${textX},${LL - fontId - margin}^A0N,${fontId},${fontId}^FD#${idCorto}^FS`,
 
     "^XZ",
   ].join("\n");

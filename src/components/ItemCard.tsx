@@ -39,6 +39,22 @@ export function ItemCard({ item, seleccionado, modoSeleccion, onToggleSeleccion,
 
   const disponible = item.estado === "disponible";
   const cat        = item.categoria;
+  const productCode = (() => {
+    try {
+      const type = (cat?.nombre ?? "GEN").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() || "GEN";
+      const zone = (Object.entries(item.atributos ?? {}).find(([key]) => /zona|area|ubicacion/i.test(key))?.[1] ?? "GEN")
+        .toString()
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .slice(0, 3)
+        .toUpperCase() || "GEN";
+      const date = new Date(item.fecha_creacion);
+      const code = `${String(date.getDate()).padStart(2, "0")}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getFullYear()).slice(-2)}`;
+      const suffix = String(item.id).replace(/[^A-Za-z0-9]/g, "").slice(-4).toUpperCase().padEnd(4, "0");
+      return `${type}-${zone}-${code}-${suffix}`;
+    } catch {
+      return item.id.slice(0, 12).toUpperCase();
+    }
+  })();
 
   async function getQr(): Promise<string> {
     if (qrSrc) return qrSrc;
@@ -97,17 +113,16 @@ export function ItemCard({ item, seleccionado, modoSeleccion, onToggleSeleccion,
       } ${seleccionado ? "border-sky-500 ring-2 ring-sky-200" : "border-slate-100"}`}
     >
       <div className="p-4">
-        {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
+            <div className="flex items-center gap-2 mb-1">
               <CatIcon icono={cat?.icono} nombre={cat?.nombre} />
-              <span className="text-xs text-slate-400 font-medium truncate">{cat?.nombre}</span>
+              <span className="text-[11px] uppercase tracking-[0.12em] text-slate-500 font-semibold truncate">{cat?.nombre}</span>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-              disponible ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+              disponible ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${disponible ? "bg-emerald-500" : "bg-slate-400"}`} />
               {disponible ? "Disponible" : "Usado"}
@@ -122,46 +137,44 @@ export function ItemCard({ item, seleccionado, modoSeleccion, onToggleSeleccion,
           </div>
         </div>
 
-        {/* Atributos */}
         <div className="space-y-3 text-sm mb-4">
-          {/* Código único */}
-          <div className="rounded-lg bg-slate-100 px-3 py-2 border border-slate-200">
-            <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wide">Código</p>
-            <p className="font-bold text-slate-900 font-mono text-xs mt-0.5">{item.id.slice(0, 16).toUpperCase()}</p>
+          <div className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5">
+            <p className="text-[9px] uppercase tracking-[0.16em] text-slate-500 font-semibold">Código</p>
+            <p className="mt-1 font-bold text-slate-900 font-mono text-[11px] break-all">{productCode}</p>
           </div>
-          
-          {/* Atributos del producto */}
+
           {cat?.campos && cat.campos.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2">
-              {cat.campos.map(campo => {
-                const valor = item.atributos?.[campo.nombre];
-                if (!valor) return null;
-                return (
-                  <div key={campo.nombre}>
-                    <p className="text-xs text-slate-500 font-medium">{campo.label}</p>
-                    <p className="font-semibold text-slate-800 text-sm truncate">{String(valor)}</p>
-                  </div>
-                );
-              })}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+              <div className="space-y-2">
+                {cat.campos.slice(0, 4).map(campo => {
+                  const valor = item.atributos?.[campo.nombre];
+                  if (!valor) return null;
+                  return (
+                    <div key={campo.nombre} className="grid grid-cols-[76px_minmax(0,1fr)] gap-2 items-center">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{campo.label}</span>
+                      <span className="text-[12px] font-semibold text-slate-800 break-words">{String(valor)}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
-          
-          {/* Cantidad y Fechas */}
+
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
             {item.cantidad > 1 && (
-              <div>
-                <p className="text-xs text-slate-500 font-medium">Cantidad</p>
-                <p className="font-semibold text-slate-800">{item.cantidad}</p>
+              <div className="rounded-lg bg-emerald-50 px-2.5 py-2">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-emerald-700">Cantidad</p>
+                <p className="mt-0.5 font-bold text-slate-800">{item.cantidad}</p>
               </div>
             )}
-            <div>
-              <p className="text-xs text-slate-500 font-medium">Creado</p>
-              <p className="font-semibold text-slate-700 text-xs">{new Date(item.fecha_creacion).toLocaleDateString("es-CL")}</p>
+            <div className="rounded-lg bg-slate-100 px-2.5 py-2">
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Creado</p>
+              <p className="mt-0.5 font-semibold text-slate-700 text-[11px]">{new Date(item.fecha_creacion).toLocaleDateString("es-CL")}</p>
             </div>
             {item.fecha_uso && (
-              <div>
-                <p className="text-xs text-slate-500 font-medium">Usado</p>
-                <p className="font-semibold text-slate-700 text-xs">{new Date(item.fecha_uso).toLocaleDateString("es-CL")}</p>
+              <div className="rounded-lg bg-amber-50 px-2.5 py-2 col-span-2">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-amber-700">Usado</p>
+                <p className="mt-0.5 font-semibold text-slate-700 text-[11px]">{new Date(item.fecha_uso).toLocaleDateString("es-CL")}</p>
               </div>
             )}
           </div>

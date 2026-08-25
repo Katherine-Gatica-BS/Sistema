@@ -153,90 +153,112 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-slate-50">
-      <div className="w-full max-w-sm space-y-8">
-        {/* Logo / Brand */}
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-slate-900 flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <LogoCortinaqr size={40} />
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
+        <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="hidden lg:flex relative items-center justify-center bg-slate-900 p-12">
+            <div className="max-w-md text-center text-white">
+              <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl border border-amber-400/40 bg-slate-800">
+                <LogoCortinaqr size={64} />
+              </div>
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-amber-300">Sistema de inventario</p>
+              <h1 className="mt-4 text-4xl font-black tracking-tight">
+                <span className="text-white">CORTINA</span> <span className="text-amber-400">QR</span>
+              </h1>
+              <p className="mt-3 text-lg font-medium text-slate-200">INVENTARIO</p>
+              <p className="mt-6 text-sm leading-6 text-slate-300">
+                Controla stock, escanea productos y organiza tu inventario desde una sola plataforma.
+              </p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Inventario Conos</h1>
-          <p className="text-slate-500 text-sm mt-1">Ingresa con tu cuenta autorizada</p>
+
+          <div className="flex items-center justify-center p-6 sm:p-8 lg:p-12">
+            <div className="w-full max-w-md">
+              <div className="mb-8 text-center lg:text-left">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-900 shadow-sm lg:mx-0">
+                  <LogoCortinaqr size={42} />
+                </div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-900">CORTINA QR</h2>
+                <p className="mt-1 text-sm font-medium text-slate-500">INVENTARIO</p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                      Usuario
+                    </label>
+                    <input
+                      type="text"
+                      value={usuario}
+                      onChange={(e) => setUsuario(e.target.value)}
+                      placeholder="tu usuario"
+                      autoComplete="username"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-shadow"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-medium text-slate-500">
+                        Contraseña
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setModo("recuperar")}
+                        className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                      >
+                        ¿Olvidaste tu contraseña?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        autoComplete="current-password"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2.5 pr-10 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-shadow"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {error && (
+                    <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                      {error}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Ingresando...
+                      </>
+                    ) : (
+                      "Iniciar sesión"
+                    )}
+                  </button>
+                </div>
+              </form>
+
+              <p className="mt-5 text-center text-xs text-slate-400">
+                ¿Sin acceso? Contacta al administrador.
+              </p>
+            </div>
+          </div>
         </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">
-              Usuario
-            </label>
-            <input
-              type="text"
-              value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
-              placeholder="tu usuario"
-              autoComplete="username"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-shadow"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-medium text-slate-500">
-                Contraseña
-              </label>
-              <button
-                type="button"
-                onClick={() => setModo("recuperar")}
-                className="text-xs text-brand-600 hover:text-brand-700 font-medium"
-              >
-                ¿Olvidaste tu contraseña?
-              </button>
-            </div>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 pr-10 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-shadow"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Ingresando...
-              </>
-            ) : (
-              "Iniciar sesión"
-            )}
-          </button>
-        </form>
-
-        <p className="text-center text-xs text-slate-400">
-          ¿Sin acceso? Contacta al administrador.
-        </p>
       </div>
     </div>
   );

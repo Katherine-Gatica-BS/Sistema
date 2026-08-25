@@ -36,8 +36,8 @@ export function generarZPL(item: LabelData, opts?: {
   anchoMm?: number;
   altoMm?: number;
 }): string {
-  const anchoMm = opts?.anchoMm ?? 50;
-  const altoMm  = opts?.altoMm  ?? 30;
+  const anchoMm = opts?.anchoMm ?? 100;
+  const altoMm  = opts?.altoMm  ?? 50;
   const DOTS    = 8; // 203 dpi ≈ 8 dots/mm
   const PW      = Math.round(anchoMm * DOTS);
   const LL      = Math.round(altoMm  * DOTS);

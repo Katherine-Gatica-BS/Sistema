@@ -6,6 +6,7 @@ import { Item } from "@/lib/supabase";
 import { generateQRDataUrl } from "@/lib/qr";
 import { generarZPLBatch, descargarZPL, LabelData } from "@/lib/zpl";
 import { conectarZebra, imprimirZPL, ZebraPrinter } from "@/lib/zebra-browser-print";
+import { generateProductCode } from "@/lib/product-code";
 
 interface Props {
   items: Item[];
@@ -15,7 +16,7 @@ interface Props {
 const LABEL_SIZE_STORAGE_KEY = "cono-app-label-size";
 
 function getPreferredLabelSize() {
-  if (typeof window === "undefined") return { ancho: 50, alto: 30 };
+  if (typeof window === "undefined") return { ancho: 100, alto: 50 };
   try {
     const saved = JSON.parse(localStorage.getItem(LABEL_SIZE_STORAGE_KEY) ?? "null");
     if (Number.isFinite(saved?.ancho) && Number.isFinite(saved?.alto)) {
@@ -24,7 +25,7 @@ function getPreferredLabelSize() {
   } catch {
     // Use the default size when the saved preference is invalid.
   }
-  return { ancho: 50, alto: 30 };
+  return { ancho: 100, alto: 50 };
 }
 
 function itemToLabelData(item: Item): LabelData {
@@ -45,8 +46,8 @@ type ZebraEstado = "detectando" | "disponible" | "no_disponible" | "imprimiendo"
 export function PrintPreviewModal({ items, onClose }: Props) {
   const [qrMap, setQrMap]           = useState<Record<string, string>>({});
   const [loadingQr, setLoadingQr]   = useState(true);
-  const [anchoMm, setAnchoMm]       = useState(() => getPreferredLabelSize().ancho);
-  const [altoMm, setAltoMm]         = useState(() => getPreferredLabelSize().alto);
+  const [anchoMm, setAnchoMm]       = useState(100);
+  const [altoMm, setAltoMm]         = useState(50);
   const [showConfig, setShowConfig]  = useState(false);
   const [zebraEstado, setZebraEstado]       = useState<ZebraEstado>("detectando");
   const [zebraBase, setZebraBase]           = useState<string | null>(null);
@@ -56,11 +57,11 @@ export function PrintPreviewModal({ items, onClose }: Props) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(LABEL_SIZE_STORAGE_KEY, JSON.stringify({ ancho: anchoMm, alto: altoMm }));
+      localStorage.setItem(LABEL_SIZE_STORAGE_KEY, JSON.stringify({ ancho: 100, alto: 50 }));
     } catch {
-      // La vista previa sigue funcionando aunque el navegador no permita guardar preferencias.
+      // Se mantiene el tamaño estándar para todas las etiquetas impresas.
     }
-  }, [anchoMm, altoMm]);
+  }, []);
 
   useEffect(() => {
     async function gen() {
@@ -86,7 +87,7 @@ export function PrintPreviewModal({ items, onClose }: Props) {
   }, []);
 
   function getZPL() {
-    return generarZPLBatch(items.map(itemToLabelData), { anchoMm, altoMm });
+    return generarZPLBatch(items.map(itemToLabelData), { anchoMm: 100, altoMm: 50 });
   }
 
   async function handleImprimirZebra() {
@@ -99,51 +100,44 @@ export function PrintPreviewModal({ items, onClose }: Props) {
 
   function handleDescargarZPL() { descargarZPL(getZPL(), `etiquetas-${items.length}.zpl`); }
 
-  // ─── IMPRESIÓN BROWSER — layout correcto, sin saltos ────────────────────────
   function handleBrowserPrint() {
     if (loadingQr) { alert("Espera, los QR aún se están generando..."); return; }
     const win = window.open("", "_blank");
     if (!win) { alert("El navegador bloqueó la ventana. Permite pop-ups para este sitio."); return; }
 
-    // Todas las medidas se calculan en mm de forma explícita (nada de % ni flex-basis)
-    // para que ambos lados (QR y texto) respeten siempre el tamaño configurado,
-    // sin importar qué tan chico o grande sea, y sin que uno se estire más que el otro.
-    const padX      = Math.min(2.5, anchoMm * 0.06);
-    const padY      = Math.min(2, altoMm * 0.08);
-    const sepW      = 0.4;
-    const gap       = Math.min(2, anchoMm * 0.04);
-    const anchoUtil = anchoMm - padX * 2;
-    const altoUtil  = altoMm - padY * 2;
-    const qrSize    = Math.max(5, Math.min(altoUtil, anchoUtil * 0.42));
-    const txtWidth  = Math.max(5, anchoUtil - qrSize - sepW - gap * 2);
-    const fontBase  = Math.max(4.5, Math.min(8, altoMm * 0.22));
+    const ancho = 100;
+    const alto = 50;
+    const padX = 3;
+    const padY = 2.5;
+    const gap = 2;
+    const qrSize = 34;
+    const textW = 58;
+    const fontBase = 8;
 
     const etiquetasHTML = items.map((item, idx) => {
       const qr = qrMap[item.id] ?? "";
       const cat = item.categoria;
       const attrs = Object.entries(item.atributos ?? {}).filter(([, v]) => v?.trim());
       const isLast = idx === items.length - 1;
+      const codigo = generateProductCode(item);
 
       const filas = attrs.map(([k, v]) => {
         const campo = cat?.campos?.find(c => c.nombre === k);
-        return `<tr>
-          <td class="lbl">${campo?.label ?? k}</td>
-          <td class="val">${String(v).substring(0, 30)}</td>
-        </tr>`;
+        const label = (campo?.label ?? k).slice(0, 12);
+        return `<div class="row"><span class="label">${label}:</span><span class="value">${String(v).slice(0, 21)}</span></div>`;
       }).join("");
 
       const breakStyle = isLast ? "" : 'style="page-break-after:always;break-after:page;"';
 
       return `<div class="page" ${breakStyle}>
   <div class="label">
-    <div class="qr-col">
-      <img src="${qr}" class="qr-img" />
-    </div>
-    <div class="sep"></div>
-    <div class="txt-col">
-      <div class="cat-txt">${cat?.nombre ?? ""}</div>
-      <table class="tbl">${filas}</table>
-      <div class="id-txt">#${item.id.slice(0, 10).toUpperCase()}</div>
+    <div class="qr-box"><img src="${qr}" class="qr-img" /></div>
+    <div class="divider"></div>
+    <div class="info">
+      <div class="title">${cat?.nombre ?? "Producto"}</div>
+      <div class="rows">${filas}</div>
+      <div class="meta">Creado: ${new Date(item.fecha_creacion).toLocaleDateString("es-ES")}</div>
+      <div class="code">${codigo}</div>
     </div>
   </div>
 </div>`;
@@ -155,132 +149,104 @@ export function PrintPreviewModal({ items, onClose }: Props) {
 <meta charset="utf-8"/>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
-@page {
-  size: ${anchoMm}mm ${altoMm}mm;
-  margin: 0;
-}
-
-html, body {
-  width: ${anchoMm}mm;
-  font-family: Arial, Helvetica, sans-serif;
-  background: #fff;
-}
-
-.page {
-  width: ${anchoMm}mm;
-  height: ${altoMm}mm;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
+@page { size: ${ancho}mm ${alto}mm; margin: 0; }
+html, body { width: ${ancho}mm; margin: 0; font-family: Arial, Helvetica, sans-serif; background: #fff; }
+.page { width: ${ancho}mm; height: ${alto}mm; display: flex; align-items: center; justify-content: center; }
 .label {
-  width: ${anchoUtil}mm;
-  height: ${altoUtil}mm;
+  width: ${ancho - padX * 2}mm;
+  height: ${alto - padY * 2}mm;
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: center;
   gap: ${gap}mm;
-  overflow: hidden;
+  padding: ${padY}mm ${padX}mm;
+  border: 1px solid #dfe7f2;
+  background: #fff;
+  border-radius: 3px;
 }
-
-.qr-col {
+.qr-box {
   width: ${qrSize}mm;
   height: ${qrSize}mm;
-  flex: none;
+  min-width: ${qrSize}mm;
+  min-height: ${qrSize}mm;
+  border: 1px solid #dfe7f2;
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  padding: 1mm;
 }
-.qr-img {
-  width: 100%;
+.qr-img { width: 100%; height: 100%; object-fit: contain; }
+.divider {
+  width: 1px;
+  height: 70%;
+  background: #dfe7f2;
+}
+.info {
+  width: ${textW}mm;
   height: 100%;
-  display: block;
-  object-fit: contain;
-}
-
-.sep {
-  width: ${sepW}mm;
-  height: ${Math.max(4, altoUtil * 0.8)}mm;
-  flex: none;
-  background: #ccc;
-}
-
-.txt-col {
-  width: ${txtWidth}mm;
-  height: ${altoUtil}mm;
-  flex: none;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  overflow: hidden;
+  gap: 1.1mm;
 }
-
-.cat-txt {
-  font-size: ${fontBase - 1}pt;
-  color: #000;
-  text-transform: uppercase;
-  letter-spacing: 0.4pt;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 0.8mm;
-}
-
-.tbl {
-  border-collapse: collapse;
-  width: 100%;
-  table-layout: fixed;
-}
-.tbl td {
-  font-size: ${fontBase}pt;
-  line-height: 1.4;
-  vertical-align: top;
-  padding: 0;
-  overflow: hidden;
-}
-.tbl .lbl {
-  color: #000;
-  width: 40%;
-  padding-right: 0.5mm;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tbl .val {
-  color: #000;
+.title {
+  font-size: 10pt;
+  line-height: 1.1;
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #111827;
+  letter-spacing: 0.2pt;
+  text-transform: uppercase;
 }
-
-.id-txt {
-  font-size: ${fontBase - 1.5}pt;
-  color: #000;
-  font-family: monospace;
-  margin-top: 1mm;
-  white-space: nowrap;
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7mm;
+}
+.row {
+  display: grid;
+  grid-template-columns: 24% 76%;
+  gap: 1mm;
+  align-items: center;
+  font-size: ${fontBase - 0.5}pt;
+  color: #111827;
+  line-height: 1.2;
+}
+.label {
+  font-weight: 700;
+  color: #475569;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.value {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta {
+  font-size: 6.5pt;
+  font-weight: 700;
+  color: #334155;
+  margin-top: 0.2mm;
+}
+.code {
+  font-size: 6.5pt;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.2pt;
+  font-family: monospace;
 }
 </style>
 </head>
 <body>
 ${etiquetasHTML}
 <script>
-window.addEventListener('load', function() {
-  setTimeout(function() { window.print(); }, 600);
-});
+window.addEventListener('load', function() { setTimeout(() => window.print(), 400); });
 <\/script>
 </body>
 </html>`;
 
-    win.document.open();
     win.document.write(html);
     win.document.close();
   }
@@ -301,58 +267,30 @@ window.addEventListener('load', function() {
         <div className="p-5 space-y-5">
           <div className="flex items-center justify-between rounded-xl border border-sky-100 bg-sky-50 px-4 py-2.5 text-sm text-sky-800">
             <span>
-              Tamaño de etiqueta guardado: <strong>{anchoMm} × {altoMm} mm</strong> — se usará siempre por defecto.
+              Tamaño de etiqueta fijo: <strong>100 × 50 mm</strong> — se usa siempre para mantener la proporción correcta.
             </span>
             <button type="button" onClick={() => setShowConfig(v => !v)} className="text-xs font-semibold text-sky-700 hover:underline">
-              {showConfig ? "Ocultar" : "Cambiar"}
+              {showConfig ? "Ocultar" : "Config."}
             </button>
           </div>
 
           {showConfig && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className="text-sm text-slate-700">
-                  <span className="mb-1 block font-medium">Ancho (mm)</span>
-                  <input
-                    type="number"
-                    min={20}
-                    max={100}
-                    value={anchoMm}
-                    onChange={e => setAnchoMm(Number(e.target.value) || 50)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </label>
-                <label className="text-sm text-slate-700">
-                  <span className="mb-1 block font-medium">Alto (mm)</span>
-                  <input
-                    type="number"
-                    min={20}
-                    max={100}
-                    value={altoMm}
-                    onChange={e => setAltoMm(Number(e.target.value) || 30)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </label>
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
+                El formato estándar es 100 × 50 mm y está bloqueado para evitar que la etiqueta se desarme o se vea corrida.
               </div>
               <div className="flex flex-wrap gap-2">
-                {[{ a: 50, h: 30 }, { a: 40, h: 30 }, { a: 60, h: 40 }, { a: 100, h: 50 }].map(p => (
+                {[{ a: 100, h: 50 }].map(p => (
                   <button
                     key={`${p.a}x${p.h}`}
                     type="button"
                     onClick={() => { setAnchoMm(p.a); setAltoMm(p.h); }}
-                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                      anchoMm === p.a && altoMm === p.h
-                        ? "border-sky-500 bg-sky-50 text-sky-700"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
-                    }`}
+                    className="rounded-lg border border-sky-500 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700"
                   >
-                    {p.a} × {p.h} mm
+                    {p.a} × {p.h} mm estándar
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-slate-400">
-                El tamaño se guarda automáticamente en este navegador y se usará por defecto la próxima vez que imprimas.
-              </p>
             </div>
           )}
 
@@ -363,7 +301,7 @@ window.addEventListener('load', function() {
                 style={{ aspectRatio: `${anchoMm} / ${altoMm}` }}
                 className="min-h-[150px] overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
               >
-                <div className="grid h-full min-h-0 grid-cols-2 items-center gap-3">
+                <div className="grid h-full min-h-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
                   <div className="flex h-full min-h-0 min-w-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 p-2">
                     {loadingQr ? (
                       <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
@@ -375,25 +313,25 @@ window.addEventListener('load', function() {
                   <div className="min-w-0 self-stretch overflow-hidden">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-xs font-bold text-slate-900">{item.categoria?.nombre ?? "Sin categoría"}</span>
+                        <span className="truncate text-[11px] font-bold text-slate-900">{item.categoria?.nombre ?? "Sin categoría"}</span>
                       </div>
-                      <span className="shrink-0 font-mono text-[9px] font-bold text-slate-900">#{item.id.slice(0, 8)}</span>
                     </div>
 
-                    <div className="mt-1.5 space-y-0.5 text-[10px] leading-tight">
+                    <div className="mt-1.5 space-y-0.5 text-[9px] leading-tight">
                       {item.categoria?.campos.map((campo, index) => {
                         const value = item.atributos?.[campo.nombre];
                         if (!value) return null;
                         return (
-                          <div key={campo.nombre} className="grid grid-cols-[56px_minmax(0,1fr)] gap-1">
-                            <span className="truncate font-bold text-slate-900">{campo.label}:</span>
+                          <div key={campo.nombre} className="grid grid-cols-[52px_minmax(0,1fr)] gap-1">
+                            <span className="truncate font-bold text-slate-700">{campo.label}:</span>
                             <span className="truncate font-bold text-slate-900">{String(value).substring(0, 22)}</span>
                           </div>
                         );
                       })}
                     </div>
-                    <div className="mt-1.5 text-[8px] font-bold leading-none text-slate-900">
-                      Creado: {new Date(item.fecha_creacion).toLocaleDateString("es-ES")}
+                    <div className="mt-2 text-[8px] font-bold leading-snug text-slate-900">
+                      <div>Creado: {new Date(item.fecha_creacion).toLocaleDateString("es-ES")}</div>
+                      <div className="mt-1 break-all font-mono text-[8px]">{generateProductCode(item)}</div>
                     </div>
                   </div>
                 </div>

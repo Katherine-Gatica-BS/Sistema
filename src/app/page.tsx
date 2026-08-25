@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/AppShell";
 import { Item, Categoria } from "@/lib/supabase";
 import { normalizeCategoryIcon } from "@/lib/category-icon";
+import { generateProductCode } from "@/lib/product-code";
 
 const BarraPorCategoria = dynamic(() => import("@/components/DashboardCharts").then(m => m.BarraPorCategoria), {
   ssr: false,
@@ -103,25 +104,25 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
             icon={<Package size={18} className="text-sky-600" />} label="Total ítems" value={items.length} delta={null}
-            bg="bg-sky-100 border border-sky-200"
+            bg="bg-sky-50 border border-sky-200"
             selected={!hayFiltro}
             onClick={quitarFiltro}
           />
           <KpiCard
             icon={<Circle size={18} className="text-emerald-600 fill-emerald-600" />} label="Disponibles" value={disponibles.length} delta={`${100 - tasaUso}% del stock`}
-            bg="bg-emerald-100 border border-emerald-200"
+            bg="bg-emerald-50 border border-emerald-200"
             selected={filtroEstados.has("disponible")}
             dimmed={hayFiltro && !filtroEstados.has("disponible")}
             onClick={() => toggleFiltro("disponible")}
           />
           <KpiCard
             icon={<CheckCircle size={18} className="text-slate-600" />} label="Usados" value={usados.length} delta={null}
-            bg="bg-slate-200 border border-slate-300"
+            bg="bg-slate-100 border border-slate-300"
             selected={filtroEstados.has("usado")}
             dimmed={hayFiltro && !filtroEstados.has("usado")}
             onClick={() => toggleFiltro("usado")}
           />
-          <KpiCard icon={<TrendingUp size={18} className="text-amber-600" />} label="Tasa de uso" value={`${tasaUso}%`} delta={null} bg="bg-amber-100 border border-amber-200" />
+          <KpiCard icon={<TrendingUp size={18} className="text-amber-600" />} label="Tasa de uso" value={`${tasaUso}%`} delta={null} bg="bg-amber-50 border border-amber-200" />
         </div>
 
         {hayFiltro && (
@@ -207,7 +208,7 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 font-mono truncate">#{item.id.slice(0, 16).toUpperCase()}</p>
+                        <p className="text-sm font-semibold text-slate-800 font-mono truncate">#{generateProductCode(item)}</p>
                         <p className="text-xs text-slate-400">{item.categoria?.nombre} · {new Date(item.fecha_creacion).toLocaleDateString("es-CL")}</p>
                       </div>
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${

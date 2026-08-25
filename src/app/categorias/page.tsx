@@ -21,6 +21,18 @@ function slugify(s: string) {
     .replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
 }
 
+function makeUniqueFieldName(base: string, usedNames: Set<string>, fallback = "campo") {
+  const cleanBase = slugify(base || fallback) || fallback;
+  let candidate = cleanBase;
+  let suffix = 2;
+  while (usedNames.has(candidate)) {
+    candidate = `${cleanBase}_${suffix}`;
+    suffix += 1;
+  }
+  usedNames.add(candidate);
+  return candidate;
+}
+
 /* ── Formulario reutilizable para crear / editar ─────────────── */
 function CategoriaForm({
   inicial,
@@ -53,7 +65,18 @@ function CategoriaForm({
   const [opcionesTexto, setOpcionesTexto] = useState<Record<number, string>>({});
 
   function updateCampoActual(i: number, key: keyof CampoSchema, val: string | boolean | string[]) {
-    setCamposActuales(p => p.map((c, idx) => idx === i ? { ...c, [key]: val } : c));
+    setCamposActuales(p => {
+      const next = p.map((c, idx) => {
+        if (idx !== i) return c;
+        const updated = { ...c, [key]: val } as CampoSchema;
+        if (key === "label") {
+          const used = new Set(p.filter((_, idx2) => idx2 !== i).map(campo => campo.nombre).filter(Boolean));
+          updated.nombre = makeUniqueFieldName(String(val || ""), used, "campo");
+        }
+        return updated;
+      });
+      return next;
+    });
   }
   function confirmarRemoverCampoActual() {
     if (campoAEliminar === null) return;
@@ -80,8 +103,11 @@ function CategoriaForm({
   function updateCampoNuevo(i: number, key: keyof CampoSchema, val: string | boolean | string[]) {
     setCamposNuevos(p => p.map((c, idx) => {
       if (idx !== i) return c;
-      const next = { ...c, [key]: val };
-      if (key === "label") next.nombre = slugify(val as string);
+      const next = { ...c, [key]: val } as CampoSchema;
+      if (key === "label") {
+        const used = new Set(p.filter((_, idx2) => idx2 !== i).map(campo => campo.nombre).filter(Boolean));
+        next.nombre = makeUniqueFieldName(String(val || ""), used, "campo");
+      }
       return next;
     }));
   }

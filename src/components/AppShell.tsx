@@ -69,42 +69,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-slate-50 flex">
 
       {/* ── SIDEBAR — solo desktop ───────────────────────────── */}
-      <aside className="hidden lg:flex flex-col w-56 bg-slate-900 fixed inset-y-0 left-0 z-30">
+      <aside className="hidden lg:flex flex-col w-60 bg-slate-900 fixed inset-y-0 left-0 z-30 shadow-lg">
         {/* Brand */}
-        <div className="px-5 py-6 border-b border-slate-700/50">
+        <div className="px-5 py-6 border-b border-slate-700/60">
           <LogoCortinaqrHorizontal />
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          <p className="text-xs font-medium text-slate-500 px-3 pb-2 uppercase tracking-wider">Principal</p>
+        <nav className="flex-1 px-3 py-4 space-y-1.5">
+          <p className="text-[11px] font-semibold text-slate-500 px-3 pb-2 uppercase tracking-[0.18em]">Principal</p>
           {NAV.map(({ href, icon: Icon, label }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
               <Link key={href} href={href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all border-l-2 ${
+                className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
                   active
-                    ? "bg-sky-500/15 text-sky-400 border-sky-400"
+                    ? "bg-sky-500/10 text-sky-300 border-sky-400/30"
                     : "text-slate-400 hover:text-white hover:bg-slate-800 border-transparent"
                 }`}
               >
-                <Icon size={17} />
+                <div className={`flex h-7 w-7 items-center justify-center rounded-md ${active ? "bg-sky-500/15 text-sky-300" : "bg-slate-800 text-slate-400 group-hover:text-white"}`}>
+                  <Icon size={16} />
+                </div>
                 {label}
-                {active && <ChevronRight size={13} className="ml-auto opacity-60" />}
+                {active && <ChevronRight size={13} className="ml-auto opacity-70" />}
               </Link>
             );
           })}
         </nav>
 
         {/* User footer */}
-        <div className="px-3 py-4 border-t border-slate-700/50 space-y-3">
+        <div className="px-3 py-4 border-t border-slate-700/60 space-y-3">
           {user && (
-            <div className="flex items-center gap-3 px-2 py-1">
-              <div className="w-7 h-7 rounded-full bg-sky-500 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">
+            <div className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-slate-900/60 px-2.5 py-2">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-sky-500 to-cyan-400 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 shadow-sm">
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-slate-300 truncate">{nombreMostrado}</p>
+                <p className="text-xs font-medium text-slate-200 truncate">{nombreMostrado}</p>
                 {rolLabel && <p className="text-[11px] text-slate-500 truncate">{rolLabel}</p>}
               </div>
               <button onClick={handleSignOut} title="Cerrar sesión"
@@ -139,7 +141,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col lg:ml-56 min-h-screen">
 
         {/* Desktop topbar */}
-        <header className="hidden lg:flex bg-white border-b border-slate-100 px-6 py-3.5 items-center justify-between sticky top-0 z-20">
+        <header className="hidden lg:flex bg-white border-b border-slate-200 px-6 py-3.5 items-center justify-between sticky top-0 z-20 shadow-sm">
           <div>
             <h1 className="text-base font-semibold text-slate-800">
               {NAV.find(n => n.href === "/" ? pathname === "/" : pathname.startsWith(n.href))?.label ?? "Cortina QR"}
@@ -147,8 +149,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <ClientDate />
           </div>
           {user && (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <div className="w-6 h-6 rounded-full bg-sky-500 flex items-center justify-center text-xs text-white font-semibold">
+            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-600">
+              <div className="w-6 h-6 rounded-full bg-sky-500 flex items-center justify-center text-[10px] text-white font-bold">
                 {initials}
               </div>
               <span className="max-w-xs truncate">{nombreMostrado}</span>

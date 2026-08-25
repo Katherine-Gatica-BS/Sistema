@@ -87,14 +87,14 @@ function LoginForm() {
 
   if (modo === "recuperar") {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-slate-50">
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-slate-900">
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
-            <div className="w-16 h-16 rounded-2xl bg-brand-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
-              <MailCheck size={28} className="text-white" />
+            <div className="w-16 h-16 rounded-2xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center mx-auto mb-4">
+              <MailCheck size={28} className="text-amber-300" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-800">Recuperar contraseña</h1>
-            <p className="text-slate-500 text-sm mt-1">
+            <h1 className="text-2xl font-bold text-white">Recuperar contraseña</h1>
+            <p className="text-slate-400 text-sm mt-1">
               Te enviaremos un enlace a tu correo registrado para crear una nueva contraseña.
             </p>
           </div>
@@ -153,8 +153,8 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-700/50 bg-white shadow-2xl">
         <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
           <div className="hidden lg:flex relative items-center justify-center bg-slate-900 p-12">
             <div className="max-w-md text-center text-white">
@@ -174,7 +174,18 @@ function LoginForm() {
 
           <div className="flex items-center justify-center p-6 sm:p-8 lg:p-12">
             <div className="w-full max-w-md">
-              <div className="mb-8 text-center lg:text-left">
+              {/* Header móvil — panel oscuro premium compacto */}
+              <div className="lg:hidden -mx-6 -mt-6 mb-6 bg-slate-900 px-6 py-8 text-center">
+                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/40 bg-slate-800">
+                  <LogoCortinaqr size={36} />
+                </div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Sistema de inventario</p>
+                <h2 className="mt-1 text-xl font-black tracking-tight text-white">
+                  CORTINA <span className="text-amber-400">QR</span>
+                </h2>
+              </div>
+
+              <div className="mb-8 text-center hidden lg:block lg:text-left">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-900 shadow-sm lg:mx-0">
                   <LogoCortinaqr size={42} />
                 </div>

@@ -227,7 +227,7 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <h2 className="font-semibold text-slate-800 text-sm mb-1">Por categoría</h2>
             <p className="text-xs text-slate-400 mb-3">{items.length} ítems en {categorias.length} categorías</p>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
               {categorias.length === 0 ? (
                 <p className="text-xs text-slate-400">Sin categorías</p>
               ) : (

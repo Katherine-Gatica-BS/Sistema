@@ -175,7 +175,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 pb-20 lg:pb-8">
+        <main className="flex-1 pb-28 lg:pb-8">
           {children}
         </main>
 

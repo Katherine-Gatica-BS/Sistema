@@ -225,27 +225,42 @@ export default function DashboardPage() {
 
           {/* Acceso rápido por categoría */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <h2 className="font-semibold text-slate-800 text-sm mb-3">Por categoría</h2>
+            <h2 className="font-semibold text-slate-800 text-sm mb-1">Por categoría</h2>
+            <p className="text-xs text-slate-400 mb-3">{items.length} ítems en {categorias.length} categorías</p>
             <div className="space-y-2">
               {categorias.length === 0 ? (
                 <p className="text-xs text-slate-400">Sin categorías</p>
               ) : (
                 categorias.map(cat => {
                   const stats = porCategoria.find(p => p.nombre === cat.nombre);
+                  const total = stats?.total ?? 0;
+                  const disp = stats?.disponible ?? 0;
+                  const usad = stats?.usado ?? 0;
+                  const pct = total > 0 ? Math.round((disp / total) * 100) : 0;
                   return (
                     <Link
                       key={cat.id}
                       href={`/inventario?cat=${cat.id}`}
-                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group"
+                      className="block p-3 rounded-xl border border-slate-100 hover:border-sky-200 hover:bg-slate-50 transition-colors group"
                     >
-                      <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex-shrink-0">
-                        <img src={normalizeCategoryIcon(cat.icono) ?? "/icon-192.png"} alt={cat.nombre} className="w-full h-full object-cover" />
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex-shrink-0">
+                          <img src={normalizeCategoryIcon(cat.icono) ?? "/icon-192.png"} alt={cat.nombre} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-700 truncate">{cat.nombre}</p>
+                          <p className="text-[11px] text-slate-400">
+                            {disp} disp. · {usad} usado{usad !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        <span className="text-lg font-bold text-slate-800 tabular-nums">{total}</span>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-700">{cat.nombre}</p>
-                        <p className="text-xs text-slate-400">{stats?.disponible ?? 0} disponibles</p>
+                      <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
-                      <ArrowRight size={14} className="text-slate-300 group-hover:text-sky-500 transition-colors" />
                     </Link>
                   );
                 })

@@ -129,7 +129,7 @@ function InventarioContent() {
 
   return (
     <AppShell>
-      <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4">
+      <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4 min-w-0">
 
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -233,8 +233,8 @@ function InventarioContent() {
         )}
 
         {/* Filtros */}
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3 min-w-0">
+          <div className="relative flex-1 min-w-0">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={busqueda}
@@ -243,7 +243,7 @@ function InventarioContent() {
               className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
+          <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0 min-w-0">
             <button
               onClick={() => setCatFiltro("")}
               className={`flex-shrink-0 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
@@ -268,12 +268,12 @@ function InventarioContent() {
         </div>
 
         {/* Tabs */}
-        <div className="flex bg-slate-100 rounded-xl p-1">
+        <div className="flex bg-slate-100 rounded-xl p-1 min-w-0">
           {(["disponible", "usado"] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex-1 min-w-0 py-2 rounded-lg text-sm font-medium text-center truncate transition-all ${
                 tab === t ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"
               }`}
             >
@@ -303,7 +303,7 @@ function InventarioContent() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 min-w-0">
             {filtrados.map(item => (
               <ItemCard
                 key={item.id}

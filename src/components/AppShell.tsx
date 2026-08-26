@@ -138,7 +138,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* ── MAIN ─────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col lg:ml-56 min-h-screen">
+      <div className="flex-1 min-w-0 flex flex-col lg:ml-56 min-h-screen">
 
         {/* Desktop topbar */}
         <header className="hidden lg:flex bg-white border-b border-slate-200 px-6 py-3.5 items-center justify-between sticky top-0 z-20 shadow-sm">
@@ -175,7 +175,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 pb-24 lg:pb-8">
+        <main className="flex-1 min-w-0 pb-24 lg:pb-8">
           {children}
         </main>
 

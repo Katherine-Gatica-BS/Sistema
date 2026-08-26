@@ -109,11 +109,11 @@ export function ItemCard({ item, seleccionado, modoSeleccion, onToggleSeleccion,
   return (
     <div
       onClick={handleCardClick}
-      className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
+      className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all min-w-0 w-full ${
         modoSeleccion ? "cursor-pointer select-none" : ""
       } ${seleccionado ? "border-sky-500 ring-2 ring-sky-200" : "border-slate-100"}`}
     >
-      <div className="p-4">
+      <div className="p-4 min-w-0">
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">

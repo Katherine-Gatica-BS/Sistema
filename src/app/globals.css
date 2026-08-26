@@ -5,10 +5,21 @@
 html, body {
   @apply bg-slate-50 text-slate-900;
   -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 body {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Evita que Safari/Chrome mobile hagan zoom automático al enfocar un input
+   (ocurre cuando el font-size es menor a 16px) — esto es lo que dejaba la
+   pantalla "agrandada"/desordenada hasta que el usuario quitaba el zoom a mano. */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Scrollbar sutil en desktop */

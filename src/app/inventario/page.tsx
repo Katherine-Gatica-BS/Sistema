@@ -132,18 +132,18 @@ function InventarioContent() {
       <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4">
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h2 className="lg:hidden text-lg font-bold text-slate-800">Inventario</h2>
             <p className="text-sm text-slate-400">{items.length} ítems en total</p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {!modoSeleccion ? (
               <>
                 <button
                   onClick={() => { setModoSeleccion(true); setShowForm(false); }}
-                  className="flex items-center gap-2 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-1.5 py-2.5 px-2.5 sm:px-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
                 >
                   <CheckSquare size={15} />
                   <span className="hidden sm:inline">Seleccionar</span>
@@ -151,15 +151,15 @@ function InventarioContent() {
                 {puedeGestionar && (
                   <button
                     onClick={() => setShowForm(v => !v)}
-                    className="flex items-center gap-2 py-2.5 px-4 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-sm active:scale-95 transition-all"
+                    className="flex items-center gap-1.5 py-2.5 px-3 sm:px-4 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-sm active:scale-95 transition-all whitespace-nowrap"
                   >
                     <QrCode size={16} />
-                    {showForm ? "Cancelar" : "Crear QR"}
+                    {showForm ? "Cancelar" : <>Crear<span className="hidden sm:inline"> QR</span></>}
                   </button>
                 )}
                 <Link
                   href="/scan"
-                  className="flex items-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 shadow-sm transition-all"
+                  className="flex items-center gap-1.5 py-2.5 px-2.5 sm:px-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 shadow-sm transition-all"
                 >
                   <Camera size={16} />
                   <span className="hidden sm:inline">Escanear</span>

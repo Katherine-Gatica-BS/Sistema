@@ -7,7 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { Categoria, CampoSchema } from "@/lib/supabase";
 import { normalizeCategoryIcon } from "@/lib/category-icon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { CAMPOS_BASE, esCampoBase, dedupeCampos, conCamposBase } from "@/lib/category-fields";
+import { CAMPOS_BASE, esCampoBase, conCamposBase } from "@/lib/category-fields";
 
 const COLORES = [
   "#0ea5e9","#10b981","#f59e0b","#8b5cf6",
@@ -55,15 +55,15 @@ function CategoriaForm({
   const [color,  setColor]  = useState(inicial?.color  ?? "#0ea5e9");
   const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [errorImagen, setErrorImagen] = useState("");
-  // Campos existentes — ahora editables y eliminables (Tipo/Zona se muestran aparte, son fijos)
+  // Campos existentes — editables y eliminables (Tipo/Zona van incluidos, pero no se pueden borrar)
   const [camposActuales, setCamposActuales] = useState<CampoSchema[]>(
-    () => dedupeCampos(inicial?.campos ?? []).filter(c => !esCampoBase(c.nombre))
+    () => esEdicion ? conCamposBase(inicial?.campos ?? []) : []
   );
   const [opcionesTextoActuales, setOpcionesTextoActuales] = useState<Record<number, string>>({});
   const [campoAEliminar, setCampoAEliminar] = useState<number | null>(null);
-  // Al editar: campos existentes + nuevos que el usuario agrega
+  // Al crear: Tipo/Zona ya vienen listos para editar, más un campo propio de partida
   const [camposNuevos, setCamposNuevos] = useState<CampoSchema[]>(
-    esEdicion ? [] : [{ ...CAMPO_VACÍO, requerido: true }]
+    esEdicion ? [] : [...CAMPOS_BASE, { ...CAMPO_VACÍO, requerido: true }]
   );
   const [opcionesTexto, setOpcionesTexto] = useState<Record<number, string>>({});
 
@@ -72,7 +72,7 @@ function CategoriaForm({
       const next = p.map((c, idx) => {
         if (idx !== i) return c;
         const updated = { ...c, [key]: val } as CampoSchema;
-        if (key === "label") {
+        if (key === "label" && !esCampoBase(c.nombre)) {
           const used = new Set(p.filter((_, idx2) => idx2 !== i).map(campo => campo.nombre).filter(Boolean));
           updated.nombre = makeUniqueFieldName(String(val || ""), used, "campo");
         }
@@ -84,6 +84,7 @@ function CategoriaForm({
   function confirmarRemoverCampoActual() {
     if (campoAEliminar === null) return;
     const idx = campoAEliminar;
+    if (esCampoBase(camposActuales[idx]?.nombre)) { setCampoAEliminar(null); return; }
     setCamposActuales(p => p.filter((_, i) => i !== idx));
     setOpcionesTextoActuales(p => Object.fromEntries(
       Object.entries(p)
@@ -96,6 +97,7 @@ function CategoriaForm({
     setCamposNuevos(p => [...p, { ...CAMPO_VACÍO }]);
   }
   function removeCampoNuevo(i: number) {
+    if (esCampoBase(camposNuevos[i]?.nombre)) return;
     setCamposNuevos(p => p.filter((_, idx) => idx !== i));
     setOpcionesTexto(p => Object.fromEntries(
       Object.entries(p)
@@ -107,7 +109,7 @@ function CategoriaForm({
     setCamposNuevos(p => p.map((c, idx) => {
       if (idx !== i) return c;
       const next = { ...c, [key]: val } as CampoSchema;
-      if (key === "label") {
+      if (key === "label" && !esCampoBase(c.nombre)) {
         const used = new Set(p.filter((_, idx2) => idx2 !== i).map(campo => campo.nombre).filter(Boolean));
         next.nombre = makeUniqueFieldName(String(val || ""), used, "campo");
       }
@@ -229,20 +231,10 @@ function CategoriaForm({
         </div>
       </div>
 
-      {/* Campos base — siempre incluidos, no se pueden eliminar */}
-      <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-3.5">
-        <p className="text-xs font-semibold text-sky-800 mb-2">Campos base · siempre incluidos</p>
-        <div className="flex flex-wrap gap-2">
-          {CAMPOS_BASE.map(c => (
-            <span key={c.nombre} className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-white px-2.5 py-1 text-xs font-semibold text-sky-700">
-              {c.label} <span className="text-red-400">*</span>
-            </span>
-          ))}
-        </div>
-        <p className="mt-1.5 text-[11px] text-sky-700/80">
-          Todo producto de esta categoría se identifica siempre por su Tipo y Zona.
-        </p>
-      </div>
+      {/* Nota sobre Tipo/Zona — aparecen abajo como campos editables pero no eliminables */}
+      <p className="text-xs text-slate-400">
+        <span className="font-semibold text-sky-600">Tipo</span> y <span className="font-semibold text-sky-600">Zona</span> vienen siempre incluidos porque se usan para generar el código del producto. Puedes modificarlos, pero no eliminarlos.
+      </p>
 
       {/* Campos existentes — editables y eliminables */}
       {esEdicion && camposActuales.length > 0 && (
@@ -252,6 +244,9 @@ function CategoriaForm({
             {camposActuales.map((campo, i) => (
               <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                 <div className="flex items-center gap-2">
+                  {esCampoBase(campo.nombre) && (
+                    <span className="text-xs bg-sky-600 text-white px-2 py-0.5 rounded-full font-medium flex-shrink-0">Base</span>
+                  )}
                   <input
                     value={campo.label}
                     onChange={e => updateCampoActual(i, "label", e.target.value)}
@@ -267,10 +262,12 @@ function CategoriaForm({
                     <option value="number">Número</option>
                     <option value="select">Opciones</option>
                   </select>
-                  <button type="button" onClick={() => setCampoAEliminar(i)}
-                    className="text-slate-300 hover:text-red-400 transition-colors">
-                    <Trash2 size={16} />
-                  </button>
+                  {!esCampoBase(campo.nombre) && (
+                    <button type="button" onClick={() => setCampoAEliminar(i)}
+                      className="text-slate-300 hover:text-red-400 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
 
                 {campo.tipo === "select" && (
@@ -329,7 +326,9 @@ function CategoriaForm({
           {camposNuevos.map((campo, i) => (
             <div key={i} className="bg-sky-50 border border-sky-100 rounded-xl p-3 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs bg-sky-500 text-white px-2 py-0.5 rounded-full font-medium flex-shrink-0">Nuevo</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 text-white ${esCampoBase(campo.nombre) ? "bg-sky-600" : "bg-sky-500"}`}>
+                  {esCampoBase(campo.nombre) ? "Base" : "Nuevo"}
+                </span>
                 <input
                   value={campo.label}
                   onChange={e => updateCampoNuevo(i, "label", e.target.value)}
@@ -345,10 +344,12 @@ function CategoriaForm({
                   <option value="number">Número</option>
                   <option value="select">Opciones</option>
                 </select>
-                <button type="button" onClick={() => removeCampoNuevo(i)}
-                  className="text-slate-300 hover:text-red-400 transition-colors">
-                  <X size={16} />
-                </button>
+                {!esCampoBase(campo.nombre) && (
+                  <button type="button" onClick={() => removeCampoNuevo(i)}
+                    className="text-slate-300 hover:text-red-400 transition-colors">
+                    <X size={16} />
+                  </button>
+                )}
               </div>
 
               {campo.tipo === "select" && (
@@ -383,7 +384,7 @@ function CategoriaForm({
         <div>
           <p className="font-semibold text-slate-800">{nombre || "Nombre de categoría"}</p>
           <p className="text-xs text-slate-400">
-            {camposActuales.length + camposNuevos.length + CAMPOS_BASE.length} campo(s) en total
+            {camposActuales.length + camposNuevos.length} campo(s) en total
           </p>
         </div>
       </div>

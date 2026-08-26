@@ -132,13 +132,13 @@ function InventarioContent() {
       <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4">
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="lg:hidden text-lg font-bold text-slate-800">Inventario</h2>
             <p className="text-sm text-slate-400">{items.length} ítems en total</p>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center justify-center gap-1.5 sm:justify-end sm:gap-2">
             {!modoSeleccion ? (
               <>
                 <button

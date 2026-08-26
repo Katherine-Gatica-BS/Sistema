@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Plus, Loader2, AlertCircle } from "lucide-react";
 import { Categoria } from "@/lib/supabase";
 import { normalizeCategoryIcon } from "@/lib/category-icon";
+import { conCamposBase } from "@/lib/category-fields";
 
 interface Props {
   categorias: Categoria[];
@@ -30,8 +31,8 @@ export function CreateItemForm({ categorias, onCreated, onClose, defaultCategori
 
   // La categoría seleccionada — con sus campos
   const categoria = categorias.find(c => c.id === categoriaId);
-  // Campos seguros — nunca null
-  const campos = Array.isArray(categoria?.campos) ? categoria!.campos : [];
+  // Campos seguros — nunca null, sin duplicados, y siempre con Tipo/Zona
+  const campos = conCamposBase(categoria?.campos);
 
   // Limpiar atributos al cambiar categoría
   function handleCatChange(id: string) {

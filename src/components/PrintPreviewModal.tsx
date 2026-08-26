@@ -7,6 +7,7 @@ import { generateQRDataUrl } from "@/lib/qr";
 import { generarZPLBatch, descargarZPL, LabelData } from "@/lib/zpl";
 import { conectarZebra, imprimirZPL, ZebraPrinter } from "@/lib/zebra-browser-print";
 import { generateProductCode } from "@/lib/product-code";
+import { conCamposBase } from "@/lib/category-fields";
 
 interface Props {
   items: Item[];
@@ -29,7 +30,7 @@ function getPreferredLabelSize() {
 }
 
 function itemToLabelData(item: Item): LabelData {
-  const campos = item.categoria?.campos ?? [];
+  const campos = conCamposBase(item.categoria?.campos);
   const vals   = Object.entries(item.atributos ?? {});
   return {
     id:        item.id,
@@ -318,7 +319,7 @@ window.addEventListener('load', function() { setTimeout(() => window.print(), 40
                     </div>
 
                     <div className="mt-1.5 space-y-0.5 text-[9px] leading-tight">
-                      {item.categoria?.campos.map((campo, index) => {
+                      {conCamposBase(item.categoria?.campos).map((campo, index) => {
                         const value = item.atributos?.[campo.nombre];
                         if (!value) return null;
                         return (

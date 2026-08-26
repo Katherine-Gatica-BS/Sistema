@@ -8,6 +8,7 @@ import { normalizeCategoryIcon } from "@/lib/category-icon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PrintPreviewModal } from "@/components/PrintPreviewModal";
 import { useAuth } from "@/lib/auth-context";
+import { dedupeCampos } from "@/lib/category-fields";
 
 interface Props {
   item: Item;
@@ -146,7 +147,7 @@ export function ItemCard({ item, seleccionado, modoSeleccion, onToggleSeleccion,
           {cat?.campos && cat.campos.length > 0 ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
               <div className="space-y-2">
-                {cat.campos.slice(0, 4).map(campo => {
+                {dedupeCampos(cat.campos).slice(0, 4).map(campo => {
                   const valor = item.atributos?.[campo.nombre];
                   if (!valor) return null;
                   return (

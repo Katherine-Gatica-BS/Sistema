@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { Categoria, CampoSchema } from "@/lib/supabase";
 import { normalizeCategoryIcon } from "@/lib/category-icon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CAMPOS_BASE, esCampoBase, dedupeCampos, conCamposBase } from "@/lib/category-fields";
 
 const COLORES = [
   "#0ea5e9","#10b981","#f59e0b","#8b5cf6",
@@ -54,8 +55,10 @@ function CategoriaForm({
   const [color,  setColor]  = useState(inicial?.color  ?? "#0ea5e9");
   const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [errorImagen, setErrorImagen] = useState("");
-  // Campos existentes — ahora editables y eliminables
-  const [camposActuales, setCamposActuales] = useState<CampoSchema[]>(inicial?.campos ?? []);
+  // Campos existentes — ahora editables y eliminables (Tipo/Zona se muestran aparte, son fijos)
+  const [camposActuales, setCamposActuales] = useState<CampoSchema[]>(
+    () => dedupeCampos(inicial?.campos ?? []).filter(c => !esCampoBase(c.nombre))
+  );
   const [opcionesTextoActuales, setOpcionesTextoActuales] = useState<Record<number, string>>({});
   const [campoAEliminar, setCampoAEliminar] = useState<number | null>(null);
   // Al editar: campos existentes + nuevos que el usuario agrega
@@ -146,8 +149,7 @@ function CategoriaForm({
             .split(",").map(opcion => opcion.trim()).filter(Boolean)
         : undefined,
     }));
-    const todosLosCampos = [...camposActualesNormalizados, ...camposNuevosNormalizados];
-    if (!todosLosCampos.length) return;
+    const todosLosCampos = conCamposBase([...camposActualesNormalizados, ...camposNuevosNormalizados]);
     if (!icono.trim()) {
       onGuardar({ nombre: nombre.trim(), icono: "/icon-192.png", color, campos: todosLosCampos });
       return;
@@ -225,6 +227,21 @@ function CategoriaForm({
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Campos base — siempre incluidos, no se pueden eliminar */}
+      <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-3.5">
+        <p className="text-xs font-semibold text-sky-800 mb-2">Campos base · siempre incluidos</p>
+        <div className="flex flex-wrap gap-2">
+          {CAMPOS_BASE.map(c => (
+            <span key={c.nombre} className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-white px-2.5 py-1 text-xs font-semibold text-sky-700">
+              {c.label} <span className="text-red-400">*</span>
+            </span>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-sky-700/80">
+          Todo producto de esta categoría se identifica siempre por su Tipo y Zona.
+        </p>
       </div>
 
       {/* Campos existentes — editables y eliminables */}
@@ -366,7 +383,7 @@ function CategoriaForm({
         <div>
           <p className="font-semibold text-slate-800">{nombre || "Nombre de categoría"}</p>
           <p className="text-xs text-slate-400">
-            {camposActuales.length + camposNuevos.length} campo(s) en total
+            {camposActuales.length + camposNuevos.length + CAMPOS_BASE.length} campo(s) en total
           </p>
         </div>
       </div>
@@ -419,7 +436,7 @@ function CategoriaCard({
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-slate-800">{cat.nombre}</p>
           <p className="text-xs text-slate-400">
-            {cat.campos?.length ?? 0} campos · {new Date(cat.fecha_creacion).toLocaleDateString("es-CL")}
+            {conCamposBase(cat.campos).length} campos · {new Date(cat.fecha_creacion).toLocaleDateString("es-CL")}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -446,7 +463,7 @@ function CategoriaCard({
         <div className="border-t border-slate-100 px-4 py-3 bg-slate-50">
           <p className="text-xs font-medium text-slate-500 mb-2">Campos configurados:</p>
           <div className="flex flex-wrap gap-2">
-            {cat.campos?.map(c => (
+            {conCamposBase(cat.campos).map(c => (
               <span key={c.nombre}
                 className="bg-white border border-slate-200 text-slate-600 text-xs px-2.5 py-1 rounded-full flex items-center gap-1">
                 {c.label}
@@ -550,6 +567,7 @@ export default function CategoriasPage() {
         {/* Formulario crear/editar */}
         {(modo === "crear" || modo === "editar") && (
           <CategoriaForm
+            key={modo === "editar" ? editando?.id : "crear"}
             inicial={editando ?? undefined}
             onGuardar={handleGuardar}
             onCancelar={() => { setModo("lista"); setEditando(null); setError(""); }}

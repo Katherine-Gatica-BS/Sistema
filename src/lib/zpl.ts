@@ -51,29 +51,38 @@ export function generarZPL(item: LabelData, opts?: {
   }));
   const meta   = `Creado: ${item.fechaCreacion}`;
   const codigo = item.codigo;
+  const escaparZPL = (texto: string) => texto.replace(/[\^~]/g, " ");
 
   // ── Layout proporcional al tamaño configurado (nada de coordenadas fijas) ──
   const margin      = Math.round(Math.min(10, PW * 0.02));
+  const qrX         = margin + Math.round(DOTS * 2);
   const qrAreaW     = Math.round(Math.min(PW * 0.42, LL - margin * 2)); // el QR es cuadrado
   const qrMagnif    = Math.max(1, Math.min(10, Math.round((qrAreaW / DOTS) / 6.25))); // mag 4 ≈ 25mm
   const dividerX    = margin + qrAreaW + margin;
   const textX       = dividerX + margin + 8;
   const textW       = PW - textX - margin;
-  const labelW      = Math.round(textW * 0.34);
+  const labelW      = Math.round(textW * 0.38);
 
-  const fontTitulo = Math.max(16, Math.round(LL * 0.11));
+  const fontTitulo = Math.max(10, Math.round(LL * 0.065));
   const fontFila   = Math.max(10, Math.round(LL * 0.065));
+  const fontDestacada = Math.max(16, Math.round(LL * 0.11));
   const fontMeta   = Math.max(9,  Math.round(LL * 0.055));
   const fontCodigo = Math.max(16, Math.round(LL * 0.09));
 
   const gapTitulo = Math.round(fontTitulo * 0.35);
-  const gapFila   = Math.round(fontFila * 0.3);
   const gapMeta   = Math.round(fontMeta * 0.4);
+  const filasConLayout = filas.map(f => {
+    const lblUpper = f.label.trim().toUpperCase();
+    const destacada = lblUpper === "COLOR" || lblUpper === "ALTO" || lblUpper.startsWith("COLOR");
+    const fontLabel = destacada ? fontDestacada : fontFila;
+    const fontValue = destacada ? fontDestacada : fontFila;
+    return { ...f, fontLabel, fontValue, alto: Math.max(fontLabel, fontValue) + Math.round(fontLabel * 0.3) };
+  });
 
   // Altura total del bloque de texto, para poder centrarlo verticalmente.
   const alturaContenido =
     fontTitulo + gapTitulo +
-    filas.length * (fontFila + gapFila) +
+    filasConLayout.reduce((total, fila) => total + fila.alto, 0) +
     fontMeta + gapMeta +
     fontCodigo;
 
@@ -82,7 +91,7 @@ export function generarZPL(item: LabelData, opts?: {
 
   let y = startY;
   const yTitulo = y; y += fontTitulo + gapTitulo;
-  const yFilas  = filas.map(() => { const yy = y; y += fontFila + gapFila; return yy; });
+  const yFilas  = filasConLayout.map(fila => { const yy = y; y += fila.alto; return yy; });
   const yMeta   = y; y += fontMeta + gapMeta;
   const yCodigo = y;
 
@@ -94,27 +103,27 @@ export function generarZPL(item: LabelData, opts?: {
     "^CI28",           // UTF-8
 
     // QR Code nativo — centrado verticalmente en el área del QR
-    `^FO${margin},${Math.max(margin, Math.round((LL - qrAreaW) / 2))}`,
+    `^FO${qrX},${Math.max(margin, Math.round((LL - qrAreaW) / 2))}`,
     `^BQN,2,${qrMagnif},M,7`,
     `^FDMA,${scanUrl}^FS`,
 
     // Línea divisoria vertical — posicionada según el ancho real del QR
     `^FO${dividerX},${margin}^GB2,${LL - margin * 2},2^FS`,
 
-    // Título — nombre de categoría, grande y negrita
-    `^FO${textX},${yTitulo}^A0N,${fontTitulo},${fontTitulo}^FB${textW},1,0,L^FD${catText}^FS`,
+    // Título — nombre de categoría en el tamaño normal de las filas
+    `^FO${textX},${yTitulo}^A0N,${fontTitulo},${fontTitulo}^FB${textW},1,0,L^FD${escaparZPL(catText)}^FS`,
 
     // Filas de atributos: etiqueta + valor en dos columnas
-    ...filas.flatMap((f, i) => [
-      `^FO${textX},${yFilas[i]}^A0N,${fontFila},${fontFila}^FB${labelW},1,0,L^FD${f.label}^FS`,
-      `^FO${textX + labelW},${yFilas[i]}^A0N,${fontFila},${fontFila}^FB${textW - labelW},1,0,L^FD${f.value}^FS`,
+    ...filasConLayout.flatMap((f, i) => [
+      `^FO${textX},${yFilas[i]}^A0N,${f.fontLabel},${f.fontLabel}^FB${labelW},1,0,L^FD${escaparZPL(f.label)}^FS`,
+      `^FO${textX + labelW},${yFilas[i]}^A0N,${f.fontValue},${f.fontValue}^FB${textW - labelW},1,0,L^FD${escaparZPL(f.value)}^FS`,
     ]),
 
     // Fecha de creación
-    `^FO${textX},${yMeta}^A0N,${fontMeta},${fontMeta}^FB${textW},1,0,L^FD${meta}^FS`,
+    `^FO${textX},${yMeta}^A0N,${fontMeta},${fontMeta}^FB${textW},1,0,L^FD${escaparZPL(meta)}^FS`,
 
     // Código de producto
-    `^FO${textX},${yCodigo}^A0N,${fontCodigo},${fontCodigo}^FB${textW},1,0,L^FD${codigo}^FS`,
+    `^FO${textX},${yCodigo}^A0N,${fontCodigo},${fontCodigo}^FB${textW},1,0,L^FD${escaparZPL(codigo)}^FS`,
 
     "^XZ",
   ].join("\n");

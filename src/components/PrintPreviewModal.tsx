@@ -125,8 +125,10 @@ export function PrintPreviewModal({ items, onClose }: Props) {
       const filas = conCamposBase(cat?.campos).map(campo => {
         const value = item.atributos?.[campo.nombre];
         if (!value?.toString().trim()) return null;
-        const label = campo.label.slice(0, 12);
-        return `<div class="row"><span class="label">${label}:</span><span class="value">${String(value).slice(0, 21)}</span></div>`;
+        const label = campo.label.trim();
+        const lblUpper = label.toUpperCase();
+        const isDestacado = lblUpper === "COLOR" || lblUpper === "ALTO" || lblUpper.startsWith("COLOR");
+        return `<div class="row ${isDestacado ? 'destacado' : ''}"><span class="label">${label}:</span><span class="value">${String(value).slice(0, 21)}</span></div>`;
       }).filter(Boolean).join("");
 
       const breakStyle = isLast ? "" : 'style="page-break-after:always;break-after:page;"';
@@ -206,10 +208,10 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 1.1mm;
+  gap: 0.8mm;
 }
 .title {
-  font-size: 10pt;
+  font-size: 8pt;
   line-height: 1.1;
   font-weight: 700;
   color: #111827;
@@ -219,29 +221,31 @@ html, body {
 .rows {
   display: flex;
   flex-direction: column;
-  gap: 0.7mm;
+  gap: 0.6mm;
 }
 .row {
-  display: grid;
-  grid-template-columns: 24% 76%;
-  gap: 1mm;
-  align-items: center;
-  font-size: ${fontBase - 0.5}pt;
+  display: flex;
+  align-items: baseline;
+  gap: 2mm;
+  font-size: 8pt;
   color: #111827;
   line-height: 1.2;
 }
+.row.destacado {
+  font-size: 11pt;
+  font-weight: 800;
+}
 .label {
   font-weight: 700;
-  color: #475569;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #111827;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .value {
   font-weight: 700;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .meta {
   font-size: 6.5pt;
@@ -250,8 +254,8 @@ html, body {
   margin-top: 0.2mm;
 }
 .code {
-  font-size: 8.5pt;
-  font-weight: 700;
+  font-size: 10.5pt;
+  font-weight: 800;
   color: #0f172a;
   letter-spacing: 0.3pt;
   font-family: monospace;
@@ -330,28 +334,36 @@ window.addEventListener('load', function() { setTimeout(() => window.print(), 40
                     )}
                   </div>
 
-                  <div className="min-w-0 self-stretch overflow-hidden">
+                  <div className="min-w-0 self-stretch overflow-hidden flex flex-col justify-center">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-[11px] font-bold text-slate-900">{item.categoria?.nombre ?? "Sin categoría"}</span>
+                        <span className="truncate text-[10px] font-bold uppercase text-slate-900">{item.categoria?.nombre ?? "Sin categoría"}</span>
                       </div>
                     </div>
 
-                    <div className="mt-1.5 space-y-0.5 text-[9px] leading-tight">
-                      {conCamposBase(item.categoria?.campos).map((campo, index) => {
+                    <div className="mt-1 space-y-0.5 leading-tight">
+                      {conCamposBase(item.categoria?.campos).map((campo) => {
                         const value = item.atributos?.[campo.nombre];
                         if (!value) return null;
+                        const label = campo.label.trim();
+                        const lblUpper = label.toUpperCase();
+                        const isDestacado = lblUpper === "COLOR" || lblUpper === "ALTO" || lblUpper.startsWith("COLOR");
                         return (
-                          <div key={campo.nombre} className="grid grid-cols-[52px_minmax(0,1fr)] gap-1">
-                            <span className="truncate font-bold text-slate-700">{campo.label}:</span>
-                            <span className="truncate font-bold text-slate-900">{String(value).substring(0, 22)}</span>
+                          <div
+                            key={campo.nombre}
+                            className={`flex items-center gap-1.5 ${
+                              isDestacado ? "text-[13px] font-black text-slate-900" : "text-[10px] font-bold text-slate-800"
+                            }`}
+                          >
+                            <span className="shrink-0 text-slate-700">{label}:</span>
+                            <span className="truncate">{String(value).substring(0, 22)}</span>
                           </div>
                         );
                       })}
                     </div>
-                    <div className="mt-2 text-[8px] font-bold leading-snug text-slate-900">
-                      <div>Creado: {new Date(item.fecha_creacion).toLocaleDateString("es-ES")}</div>
-                      <div className="mt-1 break-all font-mono text-[8px]">{generateProductCode(item)}</div>
+                    <div className="mt-1.5 text-slate-900">
+                      <div className="text-[8px] font-bold text-slate-500">Creado: {new Date(item.fecha_creacion).toLocaleDateString("es-ES")}</div>
+                      <div className="mt-0.5 break-all font-mono text-[12px] font-extrabold text-slate-900">{generateProductCode(item)}</div>
                     </div>
                   </div>
                 </div>

@@ -17,7 +17,7 @@ interface Props {
 const LABEL_SIZE_STORAGE_KEY = "cono-app-label-size";
 
 function getPreferredLabelSize() {
-  if (typeof window === "undefined") return { ancho: 100, alto: 50 };
+  if (typeof window === "undefined") return { ancho: 100, alto: 55 };
   try {
     const saved = JSON.parse(localStorage.getItem(LABEL_SIZE_STORAGE_KEY) ?? "null");
     if (Number.isFinite(saved?.ancho) && Number.isFinite(saved?.alto)) {
@@ -26,19 +26,20 @@ function getPreferredLabelSize() {
   } catch {
     // Use the default size when the saved preference is invalid.
   }
-  return { ancho: 100, alto: 50 };
+  return { ancho: 100, alto: 55 };
 }
 
 function itemToLabelData(item: Item): LabelData {
   const campos = conCamposBase(item.categoria?.campos);
-  const vals   = Object.entries(item.atributos ?? {});
+  const filas = campos
+    .map(c => ({ label: c.label, value: item.atributos?.[c.nombre] }))
+    .filter((f): f is { label: string; value: string } => !!f.value?.toString().trim());
   return {
-    id:        item.id,
-    titulo:    vals[0]?.[1] ?? "Sin nombre",
-    subtitulo: vals[1]?.[1] ?? "",
-    categoria: item.categoria?.nombre ?? "",
-    atributos: item.atributos ?? {},
-    campos:    campos.map(c => ({ nombre: c.nombre, label: c.label })),
+    id:            item.id,
+    categoria:     item.categoria?.nombre ?? "Producto",
+    filas,
+    fechaCreacion: new Date(item.fecha_creacion).toLocaleDateString("es-ES"),
+    codigo:        generateProductCode(item),
   };
 }
 
@@ -48,7 +49,7 @@ export function PrintPreviewModal({ items, onClose }: Props) {
   const [qrMap, setQrMap]           = useState<Record<string, string>>({});
   const [loadingQr, setLoadingQr]   = useState(true);
   const [anchoMm, setAnchoMm]       = useState(100);
-  const [altoMm, setAltoMm]         = useState(50);
+  const [altoMm, setAltoMm]         = useState(55);
   const [showConfig, setShowConfig]  = useState(false);
   const [zebraEstado, setZebraEstado]       = useState<ZebraEstado>("detectando");
   const [zebraBase, setZebraBase]           = useState<string | null>(null);
@@ -58,7 +59,7 @@ export function PrintPreviewModal({ items, onClose }: Props) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(LABEL_SIZE_STORAGE_KEY, JSON.stringify({ ancho: 100, alto: 50 }));
+      localStorage.setItem(LABEL_SIZE_STORAGE_KEY, JSON.stringify({ ancho: 100, alto: 55 }));
     } catch {
       // Se mantiene el tamaño estándar para todas las etiquetas impresas.
     }
@@ -88,7 +89,7 @@ export function PrintPreviewModal({ items, onClose }: Props) {
   }, []);
 
   function getZPL() {
-    return generarZPLBatch(items.map(itemToLabelData), { anchoMm: 100, altoMm: 50 });
+    return generarZPLBatch(items.map(itemToLabelData), { anchoMm: 100, altoMm: 55 });
   }
 
   async function handleImprimirZebra() {
@@ -107,7 +108,7 @@ export function PrintPreviewModal({ items, onClose }: Props) {
     if (!win) { alert("El navegador bloqueó la ventana. Permite pop-ups para este sitio."); return; }
 
     const ancho = 100;
-    const alto = 50;
+    const alto = 55;
     const padX = 3;
     const padY = 2.5;
     const gap = 2;
@@ -118,20 +119,20 @@ export function PrintPreviewModal({ items, onClose }: Props) {
     const etiquetasHTML = items.map((item, idx) => {
       const qr = qrMap[item.id] ?? "";
       const cat = item.categoria;
-      const attrs = Object.entries(item.atributos ?? {}).filter(([, v]) => v?.trim());
       const isLast = idx === items.length - 1;
       const codigo = generateProductCode(item);
 
-      const filas = attrs.map(([k, v]) => {
-        const campo = cat?.campos?.find(c => c.nombre === k);
-        const label = (campo?.label ?? k).slice(0, 12);
-        return `<div class="row"><span class="label">${label}:</span><span class="value">${String(v).slice(0, 21)}</span></div>`;
-      }).join("");
+      const filas = conCamposBase(cat?.campos).map(campo => {
+        const value = item.atributos?.[campo.nombre];
+        if (!value?.toString().trim()) return null;
+        const label = campo.label.slice(0, 12);
+        return `<div class="row"><span class="label">${label}:</span><span class="value">${String(value).slice(0, 21)}</span></div>`;
+      }).filter(Boolean).join("");
 
       const breakStyle = isLast ? "" : 'style="page-break-after:always;break-after:page;"';
 
       return `<div class="page" ${breakStyle}>
-  <div class="label">
+  <div class="ticket">
     <div class="qr-box"><img src="${qr}" class="qr-img" /></div>
     <div class="divider"></div>
     <div class="info">
@@ -149,11 +150,25 @@ export function PrintPreviewModal({ items, onClose }: Props) {
 <head>
 <meta charset="utf-8"/>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 @page { size: ${ancho}mm ${alto}mm; margin: 0; }
-html, body { width: ${ancho}mm; margin: 0; font-family: Arial, Helvetica, sans-serif; background: #fff; }
-.page { width: ${ancho}mm; height: ${alto}mm; display: flex; align-items: center; justify-content: center; }
-.label {
+html, body {
+  width: ${ancho}mm;
+  height: 100%;
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #fff;
+}
+.page {
+  width: ${ancho}mm;
+  height: ${alto}mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  page-break-inside: avoid;
+}
+.ticket {
   width: ${ancho - padX * 2}mm;
   height: ${alto - padY * 2}mm;
   display: flex;
@@ -163,6 +178,9 @@ html, body { width: ${ancho}mm; margin: 0; font-family: Arial, Helvetica, sans-s
   border: 1px solid #dfe7f2;
   background: #fff;
   border-radius: 3px;
+}
+@media print {
+  .page { margin: 0; }
 }
 .qr-box {
   width: ${qrSize}mm;
@@ -232,11 +250,12 @@ html, body { width: ${ancho}mm; margin: 0; font-family: Arial, Helvetica, sans-s
   margin-top: 0.2mm;
 }
 .code {
-  font-size: 6.5pt;
+  font-size: 8.5pt;
   font-weight: 700;
   color: #0f172a;
-  letter-spacing: 0.2pt;
+  letter-spacing: 0.3pt;
   font-family: monospace;
+  margin-top: 0.3mm;
 }
 </style>
 </head>
@@ -268,7 +287,7 @@ window.addEventListener('load', function() { setTimeout(() => window.print(), 40
         <div className="p-5 space-y-5">
           <div className="flex items-center justify-between rounded-xl border border-sky-100 bg-sky-50 px-4 py-2.5 text-sm text-sky-800">
             <span>
-              Tamaño de etiqueta fijo: <strong>100 × 50 mm</strong> — se usa siempre para mantener la proporción correcta.
+              Tamaño de etiqueta fijo: <strong>100 × 55 mm</strong> — se usa siempre para mantener la proporción correcta.
             </span>
             <button type="button" onClick={() => setShowConfig(v => !v)} className="text-xs font-semibold text-sky-700 hover:underline">
               {showConfig ? "Ocultar" : "Config."}
@@ -278,10 +297,10 @@ window.addEventListener('load', function() { setTimeout(() => window.print(), 40
           {showConfig && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
-                El formato estándar es 100 × 50 mm y está bloqueado para evitar que la etiqueta se desarme o se vea corrida.
+                El formato estándar es 100 × 55 mm y está bloqueado para evitar que la etiqueta se desarme o se vea corrida.
               </div>
               <div className="flex flex-wrap gap-2">
-                {[{ a: 100, h: 50 }].map(p => (
+                {[{ a: 100, h: 55 }].map(p => (
                   <button
                     key={`${p.a}x${p.h}`}
                     type="button"

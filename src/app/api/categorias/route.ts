@@ -13,7 +13,11 @@ export async function GET() {
     const { data, error } = await supabase
       .from("categorias").select("*").order("nombre");
     if (error) throw error;
-    return NextResponse.json(data ?? []);
+    // Las categorías cambian con poca frecuencia: se permite cache corta
+    // por navegador/CDN para reducir carga sin servir datos desactualizados.
+    return NextResponse.json(data ?? [], {
+      headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=60" },
+    });
   } catch (e: any) {
     console.error("[GET /api/categorias]", e?.message);
     return NextResponse.json({ error: e?.message ?? "Error interno" }, { status: 500 });

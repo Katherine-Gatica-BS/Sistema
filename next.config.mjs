@@ -2,6 +2,7 @@
 const nextConfig = {
   poweredByHeader: false, // no anunciar la versión de Next.js al mundo
   compress: true,
+  productionBrowserSourceMaps: false, // no exponer código fuente en producción
   async headers() {
     return [
       {

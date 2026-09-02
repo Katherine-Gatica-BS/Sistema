@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { registrarAuditoria } from "@/lib/audit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 function createServiceClient() {
   const url = process.env.SUPABASE_URL
@@ -27,6 +28,15 @@ function createServiceClient() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const ip = getClientIp(req.headers);
+  const { allowed, resetAt } = checkRateLimit(`scan:${ip}`, 30, 60_000); // 30 escaneos/min por IP
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes, intenta de nuevo en unos segundos" },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   const body = await req.json().catch(() => ({}));
   const { id } = body;
 

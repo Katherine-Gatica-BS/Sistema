@@ -54,45 +54,46 @@ export function generarZPL(item: LabelData, opts?: {
   const escaparZPL = (texto: string) => texto.replace(/[\^~]/g, " ");
 
   // ── Layout proporcional al tamaño configurado (nada de coordenadas fijas) ──
-  const margin      = Math.round(Math.min(10, PW * 0.02));
-  const qrX         = margin + Math.round(DOTS * 2);
-  const qrAreaW     = Math.round(Math.min(PW * 0.42, LL - margin * 2)); // el QR es cuadrado
-  const qrMagnif    = Math.max(1, Math.min(10, Math.round((qrAreaW / DOTS) / 6.25))); // mag 4 ≈ 25mm
-  const dividerX    = margin + qrAreaW + margin;
-  const textX       = dividerX + margin + 8;
-  const textW       = PW - textX - margin;
-  const labelW      = Math.round(textW * 0.38);
+  const margin      = Math.round(Math.min(16, PW * 0.03));
+  const qrX         = 52; // Mueve el QR a ~6.5mm del borde izquierdo para centrarlo estéticamente
+  const qrAreaW     = 280; // QR nativo Zebra tamaño mag 7 es ~35mm (280 dots)
+  const qrY         = Math.max(margin, Math.round((LL - qrAreaW) / 2));
 
-  const fontTitulo = Math.max(10, Math.round(LL * 0.065));
-  const fontFila   = Math.max(10, Math.round(LL * 0.065));
-  const fontDestacada = Math.max(16, Math.round(LL * 0.11));
-  const fontMeta   = Math.max(9,  Math.round(LL * 0.055));
-  const fontCodigo = Math.max(16, Math.round(LL * 0.09));
+  const dividerX    = 352; // Divisor vertical en 44mm
+  const textX       = 376; // El texto empieza en 47mm
+  const offsetVal   = 140; // Columna de valores empieza en 47mm + 17.5mm = 64.5mm
 
-  const gapTitulo = Math.round(fontTitulo * 0.35);
-  const gapMeta   = Math.round(fontMeta * 0.4);
+  const fontTituloH = 28, fontTituloW = 22;
+  const fontNormH   = 24, fontNormW   = 18;
+  const fontDestH   = 34, fontDestW   = 26;
+  const fontMetaH   = 20, fontMetaW   = 16;
+  const fontCodH    = 28, fontCodW    = 22;
+
+  const gapTitulo = 10;
+  const gapMeta   = 10;
+
   const filasConLayout = filas.map(f => {
     const lblUpper = f.label.trim().toUpperCase();
     const destacada = lblUpper === "COLOR" || lblUpper === "ALTO" || lblUpper.startsWith("COLOR");
-    const fontLabel = destacada ? fontDestacada : fontFila;
-    const fontValue = destacada ? fontDestacada : fontFila;
-    return { ...f, fontLabel, fontValue, alto: Math.max(fontLabel, fontValue) + Math.round(fontLabel * 0.3) };
+    const h = destacada ? fontDestH : fontNormH;
+    const w = destacada ? fontDestW : fontNormW;
+    const altoFila = h + (destacada ? 10 : 8);
+    return { ...f, h, w, altoFila };
   });
 
   // Altura total del bloque de texto, para poder centrarlo verticalmente.
   const alturaContenido =
-    fontTitulo + gapTitulo +
-    filasConLayout.reduce((total, fila) => total + fila.alto, 0) +
-    fontMeta + gapMeta +
-    fontCodigo;
+    fontTituloH + gapTitulo +
+    filasConLayout.reduce((total, fila) => total + fila.altoFila, 0) +
+    fontMetaH + gapMeta +
+    fontCodH;
 
-  const areaDisponible = LL - margin * 2;
-  const startY = margin + Math.max(0, Math.round((areaDisponible - alturaContenido) / 2));
+  const startY = Math.max(margin, Math.round((LL - alturaContenido) / 2));
 
   let y = startY;
-  const yTitulo = y; y += fontTitulo + gapTitulo;
-  const yFilas  = filasConLayout.map(fila => { const yy = y; y += fila.alto; return yy; });
-  const yMeta   = y; y += fontMeta + gapMeta;
+  const yTitulo = y; y += fontTituloH + gapTitulo;
+  const yFilas  = filasConLayout.map(fila => { const yy = y; y += fila.altoFila; return yy; });
+  const yMeta   = y; y += fontMetaH + gapMeta;
   const yCodigo = y;
 
   return [
@@ -103,27 +104,27 @@ export function generarZPL(item: LabelData, opts?: {
     "^CI28",           // UTF-8
 
     // QR Code nativo — centrado verticalmente en el área del QR
-    `^FO${qrX},${Math.max(margin, Math.round((LL - qrAreaW) / 2))}`,
-    `^BQN,2,${qrMagnif},M,7`,
+    `^FO${qrX},${qrY}`,
+    `^BQN,2,7,M,7`,
     `^FDMA,${scanUrl}^FS`,
 
-    // Línea divisoria vertical — posicionada según el ancho real del QR
+    // Línea divisoria vertical
     `^FO${dividerX},${margin}^GB2,${LL - margin * 2},2^FS`,
 
-    // Título — nombre de categoría en el tamaño normal de las filas
-    `^FO${textX},${yTitulo}^A0N,${fontTitulo},${fontTitulo}^FB${textW},1,0,L^FD${escaparZPL(catText)}^FS`,
+    // Título — nombre de categoría
+    `^FO${textX},${yTitulo}^A0N,${fontTituloH},${fontTituloW}^FD${escaparZPL(catText)}^FS`,
 
-    // Filas de atributos: etiqueta + valor en dos columnas
+    // Filas de atributos: etiqueta + valor alineados sin compresión ZPL
     ...filasConLayout.flatMap((f, i) => [
-      `^FO${textX},${yFilas[i]}^A0N,${f.fontLabel},${f.fontLabel}^FB${labelW},1,0,L^FD${escaparZPL(f.label)}^FS`,
-      `^FO${textX + labelW},${yFilas[i]}^A0N,${f.fontValue},${f.fontValue}^FB${textW - labelW},1,0,L^FD${escaparZPL(f.value)}^FS`,
+      `^FO${textX},${yFilas[i]}^A0N,${f.h},${f.w}^FD${escaparZPL(f.label)}^FS`,
+      `^FO${textX + offsetVal},${yFilas[i]}^A0N,${f.h},${f.w}^FD${escaparZPL(f.value)}^FS`,
     ]),
 
     // Fecha de creación
-    `^FO${textX},${yMeta}^A0N,${fontMeta},${fontMeta}^FB${textW},1,0,L^FD${escaparZPL(meta)}^FS`,
+    `^FO${textX},${yMeta}^A0N,${fontMetaH},${fontMetaW}^FD${escaparZPL(meta)}^FS`,
 
     // Código de producto
-    `^FO${textX},${yCodigo}^A0N,${fontCodigo},${fontCodigo}^FB${textW},1,0,L^FD${escaparZPL(codigo)}^FS`,
+    `^FO${textX},${yCodigo}^A0N,${fontCodH},${fontCodW}^FD${escaparZPL(codigo)}^FS`,
 
     "^XZ",
   ].join("\n");

@@ -248,7 +248,7 @@ html, body {
   text-overflow: ellipsis;
 }
 .meta {
-  font-size: 6.5pt;
+  font-size: 7.5pt;
   font-weight: 700;
   color: #334155;
   margin-top: 0.2mm;
@@ -366,7 +366,7 @@ window.addEventListener('load', function() { setTimeout(() => window.print(), 40
                     </div>
 
                     <div className="mt-1.5 text-slate-900">
-                      <div className="text-[7.5px] font-bold text-slate-500">Creado: {new Date(item.fecha_creacion).toLocaleDateString("es-ES")}</div>
+                      <div className="text-[8.5px] font-bold text-slate-500">Creado: {new Date(item.fecha_creacion).toLocaleDateString("es-ES")}</div>
                       <div className="mt-0.5 break-all font-mono text-[11px] font-extrabold text-slate-900">{generateProductCode(item)}</div>
                     </div>
                   </div>

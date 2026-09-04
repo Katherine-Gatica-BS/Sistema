@@ -61,13 +61,11 @@ export function generarZPL(item: LabelData, opts?: {
 
   const dividerX    = 348; // Divisor vertical en 43.5mm
   const textX       = 366; // El texto empieza en 45.75mm
-  const offsetVal   = 120; // Separación exacta de 2.5mm (2 espacios) después de la palabra COLOR
-  const maxValWidth = PW - margin - (textX + offsetVal); // ~298 dots disponibles para valores
 
   const fontTituloH = 26, fontTituloW = 20;
   const fontNormH   = 22, fontNormW   = 16;
   const fontDestH   = 28, fontDestW   = 20; // Tamaño destacado elegante y profesional
-  const fontMetaH   = 18, fontMetaW   = 14;
+  const fontMetaH   = 21, fontMetaW   = 16;
   const fontCodH    = 26, fontCodW    = 20;
 
   const gapTitulo = 10;
@@ -80,8 +78,11 @@ export function generarZPL(item: LabelData, opts?: {
     const w = destacada ? fontDestW : fontNormW;
     const valStr = String(f.value).slice(0, 25);
 
-    // Separación sutil, prolija y pareja para TODOS los campos: 1.5 a 2 espacios exactos después del nombre de etiqueta
-    const valOffsetFila = Math.round(f.label.trim().length * w + (destacada ? 14 : 12));
+    // El ancho de fuente ZPL (A0) avanza ~62% de su parámetro por carácter (no es monoespaciado al 100%).
+    // Calculamos el ancho real del texto de la etiqueta y sumamos el equivalente a UN espacio, no más.
+    const anchoLabel = f.label.trim().length * w * 0.62;
+    const unEspacio   = w * 0.55;
+    const valOffsetFila = Math.round(anchoLabel + unEspacio);
 
     // Ajuste dinámico del ancho de fuente para valores largos (auto-escalado limpio)
     const maxWForLen = Math.floor((PW - margin - (textX + valOffsetFila)) / Math.max(1, valStr.length));

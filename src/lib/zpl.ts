@@ -60,15 +60,15 @@ export function generarZPL(item: LabelData, opts?: {
   const qrY         = Math.max(margin, Math.round((LL - qrAreaW) / 2));
 
   const dividerX    = 348; // Divisor vertical en 43.5mm
-  const textX       = 360; // El texto empieza en 45mm
-  const offsetVal   = 130; // Columna de valores empieza en 45mm + 16.25mm = 61.25mm
-  const maxValWidth = PW - margin - (textX + offsetVal); // ~286 dots disponibles para valores
+  const textX       = 366; // El texto empieza en 45.75mm
+  const offsetVal   = 145; // Columna de valores empieza en 45.75mm + 18.1mm = 63.85mm (espacio amplio tras COLOR)
+  const maxValWidth = PW - margin - (textX + offsetVal); // ~273 dots disponibles para valores
 
-  const fontTituloH = 28, fontTituloW = 22;
-  const fontNormH   = 24, fontNormW   = 18;
-  const fontDestH   = 34, fontDestW   = 26;
-  const fontMetaH   = 20, fontMetaW   = 16;
-  const fontCodH    = 28, fontCodW    = 22;
+  const fontTituloH = 26, fontTituloW = 20;
+  const fontNormH   = 22, fontNormW   = 16;
+  const fontDestH   = 30, fontDestW   = 22; // Tamaño destacado legible sin invadir espacio horizontal
+  const fontMetaH   = 18, fontMetaW   = 14;
+  const fontCodH    = 26, fontCodW    = 20;
 
   const gapTitulo = 10;
   const gapMeta   = 10;
@@ -80,12 +80,15 @@ export function generarZPL(item: LabelData, opts?: {
     const w = destacada ? fontDestW : fontNormW;
     const valStr = String(f.value).slice(0, 25);
 
-    // Ajuste dinámico del ancho de fuente para valores largos (auto-escalado limpio)
-    const maxWForLen = Math.floor(maxValWidth / Math.max(1, valStr.length));
-    const fontValueW = Math.max(12, Math.min(w, maxWForLen));
+    // offset dinámico para que etiquetas largas jamás toquen el valor
+    const valOffsetFila = Math.max(offsetVal, f.label.trim().length * w + 16);
 
-    const altoFila = h + (destacada ? 10 : 8);
-    return { ...f, h, w, fontValueW, valStr, altoFila };
+    // Ajuste dinámico del ancho de fuente para valores largos (auto-escalado limpio)
+    const maxWForLen = Math.floor((PW - margin - (textX + valOffsetFila)) / Math.max(1, valStr.length));
+    const fontValueW = Math.max(10, Math.min(w, maxWForLen));
+
+    const altoFila = h + (destacada ? 8 : 6);
+    return { ...f, h, w, fontValueW, valStr, valOffsetFila, altoFila };
   });
 
   // Altura total del bloque de texto, para poder centrarlo verticalmente.
@@ -121,10 +124,10 @@ export function generarZPL(item: LabelData, opts?: {
     // Título — nombre de categoría
     `^FO${textX},${yTitulo}^A0N,${fontTituloH},${fontTituloW}^FD${escaparZPL(catText)}^FS`,
 
-    // Filas de atributos: etiqueta + valor alineados con auto-escalado horizontal si es largo
+    // Filas de atributos: etiqueta + valor con separación amplia garantizada
     ...filasConLayout.flatMap((f, i) => [
       `^FO${textX},${yFilas[i]}^A0N,${f.h},${f.w}^FD${escaparZPL(f.label)}^FS`,
-      `^FO${textX + offsetVal},${yFilas[i]}^A0N,${f.h},${f.fontValueW}^FD${escaparZPL(f.valStr)}^FS`,
+      `^FO${textX + f.valOffsetFila},${yFilas[i]}^A0N,${f.h},${f.fontValueW}^FD${escaparZPL(f.valStr)}^FS`,
     ]),
 
     // Fecha de creación

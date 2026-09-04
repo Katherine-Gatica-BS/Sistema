@@ -354,7 +354,7 @@ window.addEventListener('load', function() { setTimeout(() => window.print(), 40
                         return (
                           <div
                             key={campo.nombre}
-                            className={`flex items-baseline gap-1.5 ${
+                            className={`flex items-baseline gap-2 ${
                               isDestacado ? "text-[12px] font-black text-slate-900" : "text-[9.5px] font-bold text-slate-700"
                             }`}
                           >

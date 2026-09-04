@@ -53,15 +53,16 @@ export function generarZPL(item: LabelData, opts?: {
   const codigo = item.codigo;
   const escaparZPL = (texto: string) => texto.replace(/[\^~]/g, " ");
 
-  // ── Layout proporcional al tamaño configurado (nada de coordenadas fijas) ──
+  // ── Layout proporcional al tamaño configurado ──
   const margin      = Math.round(Math.min(16, PW * 0.03));
-  const qrX         = 52; // Mueve el QR a ~6.5mm del borde izquierdo para centrarlo estéticamente
-  const qrAreaW     = 280; // QR nativo Zebra tamaño mag 7 es ~35mm (280 dots)
+  const qrX         = 60;  // QR a ~7.5mm del borde izquierdo
+  const qrAreaW     = 280; // QR nativo Zebra mag 7 es ~35mm (280 dots)
   const qrY         = Math.max(margin, Math.round((LL - qrAreaW) / 2));
 
-  const dividerX    = 352; // Divisor vertical en 44mm
-  const textX       = 376; // El texto empieza en 47mm
-  const offsetVal   = 140; // Columna de valores empieza en 47mm + 17.5mm = 64.5mm
+  const dividerX    = 348; // Divisor vertical en 43.5mm
+  const textX       = 360; // El texto empieza en 45mm
+  const offsetVal   = 130; // Columna de valores empieza en 45mm + 16.25mm = 61.25mm
+  const maxValWidth = PW - margin - (textX + offsetVal); // ~286 dots disponibles para valores
 
   const fontTituloH = 28, fontTituloW = 22;
   const fontNormH   = 24, fontNormW   = 18;
@@ -77,8 +78,14 @@ export function generarZPL(item: LabelData, opts?: {
     const destacada = lblUpper === "COLOR" || lblUpper === "ALTO" || lblUpper.startsWith("COLOR");
     const h = destacada ? fontDestH : fontNormH;
     const w = destacada ? fontDestW : fontNormW;
+    const valStr = String(f.value).slice(0, 25);
+
+    // Ajuste dinámico del ancho de fuente para valores largos (auto-escalado limpio)
+    const maxWForLen = Math.floor(maxValWidth / Math.max(1, valStr.length));
+    const fontValueW = Math.max(12, Math.min(w, maxWForLen));
+
     const altoFila = h + (destacada ? 10 : 8);
-    return { ...f, h, w, altoFila };
+    return { ...f, h, w, fontValueW, valStr, altoFila };
   });
 
   // Altura total del bloque de texto, para poder centrarlo verticalmente.
@@ -114,10 +121,10 @@ export function generarZPL(item: LabelData, opts?: {
     // Título — nombre de categoría
     `^FO${textX},${yTitulo}^A0N,${fontTituloH},${fontTituloW}^FD${escaparZPL(catText)}^FS`,
 
-    // Filas de atributos: etiqueta + valor alineados sin compresión ZPL
+    // Filas de atributos: etiqueta + valor alineados con auto-escalado horizontal si es largo
     ...filasConLayout.flatMap((f, i) => [
       `^FO${textX},${yFilas[i]}^A0N,${f.h},${f.w}^FD${escaparZPL(f.label)}^FS`,
-      `^FO${textX + offsetVal},${yFilas[i]}^A0N,${f.h},${f.w}^FD${escaparZPL(f.value)}^FS`,
+      `^FO${textX + offsetVal},${yFilas[i]}^A0N,${f.h},${f.fontValueW}^FD${escaparZPL(f.valStr)}^FS`,
     ]),
 
     // Fecha de creación

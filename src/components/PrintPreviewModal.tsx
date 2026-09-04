@@ -325,20 +325,23 @@ window.addEventListener('load', function() { setTimeout(() => window.print(), 40
                 style={{ aspectRatio: `${anchoMm} / ${altoMm}` }}
                 className="min-h-[150px] overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
               >
-                <div className="grid h-full min-h-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
-                  <div className="flex h-full min-h-0 min-w-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 p-2">
+                <div className="flex h-full min-h-0 items-center gap-2.5">
+                  {/* QR Box centrado */}
+                  <div className="flex h-[88%] w-[38%] min-w-0 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 p-1.5">
                     {loadingQr ? (
                       <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
                     ) : (
-                      <img src={qrMap[item.id]} alt={item.id} className="h-full w-full rounded-md object-contain" />
+                      <img src={qrMap[item.id]} alt={item.id} className="h-full w-full object-contain" />
                     )}
                   </div>
 
-                  <div className="min-w-0 self-stretch overflow-hidden flex flex-col justify-center">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-[10px] font-bold uppercase text-slate-900">{item.categoria?.nombre ?? "Sin categoría"}</span>
-                      </div>
+                  {/* Línea divisoria vertical */}
+                  <div className="h-[75%] w-px shrink-0 bg-slate-200" />
+
+                  {/* Información alineada exactamete como en el ticket físico */}
+                  <div className="flex min-w-0 flex-1 flex-col justify-center self-stretch py-1 pl-0.5">
+                    <div>
+                      <span className="truncate text-[10px] font-bold uppercase tracking-tight text-slate-900">{item.categoria?.nombre ?? "Sin categoría"}</span>
                     </div>
 
                     <div className="mt-1 space-y-0.5 leading-tight">
@@ -351,19 +354,20 @@ window.addEventListener('load', function() { setTimeout(() => window.print(), 40
                         return (
                           <div
                             key={campo.nombre}
-                            className={`flex items-center gap-1.5 ${
-                              isDestacado ? "text-[13px] font-black text-slate-900" : "text-[10px] font-bold text-slate-800"
+                            className={`flex items-baseline gap-1.5 ${
+                              isDestacado ? "text-[12px] font-black text-slate-900" : "text-[9.5px] font-bold text-slate-700"
                             }`}
                           >
-                            <span className="shrink-0 text-slate-700">{label}:</span>
+                            <span className="shrink-0 text-slate-600">{label}:</span>
                             <span className="truncate">{String(value).substring(0, 22)}</span>
                           </div>
                         );
                       })}
                     </div>
+
                     <div className="mt-1.5 text-slate-900">
-                      <div className="text-[8px] font-bold text-slate-500">Creado: {new Date(item.fecha_creacion).toLocaleDateString("es-ES")}</div>
-                      <div className="mt-0.5 break-all font-mono text-[12px] font-extrabold text-slate-900">{generateProductCode(item)}</div>
+                      <div className="text-[7.5px] font-bold text-slate-500">Creado: {new Date(item.fecha_creacion).toLocaleDateString("es-ES")}</div>
+                      <div className="mt-0.5 break-all font-mono text-[11px] font-extrabold text-slate-900">{generateProductCode(item)}</div>
                     </div>
                   </div>
                 </div>
